@@ -90,7 +90,7 @@ def main():
         threading.Thread(target=_preload_llm, daemon=True).start()
 
     notify(
-        "LANVoiceInput 启动成功",
+        "CursorMobileVoiceInput 启动成功",
         f"端口:{port} (HTTP+WS)\n单击托盘图标快速发送剪贴板到网页\n右键托盘菜单可显示二维码",
     )
     # ✅ 启动后自动打开二维码窗口（加一点延迟更稳）

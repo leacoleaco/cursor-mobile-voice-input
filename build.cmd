@@ -3,28 +3,28 @@ chcp 65001 >nul
 cd /d "%~dp0"
 
 if not exist icon.ico (
-    echo [build] 错误: icon.ico 不存在，请先创建 icon.ico
+    echo [build] Error: icon.ico not found, please create icon.ico first
     pause
     exit /b 1
 )
 
-echo [build] 检查 PyInstaller...
+echo [build] Checking PyInstaller...
 pip install pyinstaller -q 2>nul
 
-echo [build] 打包 exe...
+echo [build] Building exe...
 pyinstaller --onefile --windowed --noconfirm --clean ^
-  --name LANVoiceInput ^
+  --name CursorMobileVoiceInput ^
   --add-data "index.html;." ^
   --add-data "icon.ico;." ^
   --icon icon.ico ^
   server.py
 
 if %ERRORLEVEL% neq 0 (
-    echo [build] 打包失败
+    echo [build] Build failed
     pause
     exit /b 1
 )
 
 echo.
-echo [build] 完成: dist\LANVoiceInput.exe
+echo [build] Done: dist\CursorMobileVoiceInput.exe
 pause

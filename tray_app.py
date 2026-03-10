@@ -60,6 +60,6 @@ def run_tray(qr_manager):
         item("显示二维码", tray_show_qr),
         item("退出", tray_quit),
     )
-    tray_icon = pystray.Icon("LANVoiceInput", Image.open(image_path), "LAN Voice Input", menu)
+    tray_icon = pystray.Icon("CursorMobileVoiceInput", Image.open(image_path), "LAN Voice Input", menu)
     set_tray_icon(tray_icon)
     tray_icon.run()

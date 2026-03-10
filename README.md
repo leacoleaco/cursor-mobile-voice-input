@@ -1,48 +1,106 @@
-# lan-voice-input
-局域网语音输入
+# LAN Voice Input
 
-## 基本功能
-手机语音输入，自动同步到电脑中
+Use your phone as a voice and remote input device for your Windows PC over the same LAN. Designed for [Cursor IDE](https://cursor.com) users, but works with any application that accepts text input.
 
-## 使用场景
+## Features
 
-- 电脑没有mic，又想实现语音输入
-- 手机上各种输入法语音输入已经很方便，直接使用手机输入法的语音输入，向电脑上 输入内容
+- **Voice & Text Input** — Use your phone's keyboard (including voice input) to type into your PC. Tap the input box, bring up the mobile keyboard, and speak or type.
+- **Command Mode** — Natural-language voice commands: pause/continue input, newline, punctuation (comma, period, etc.), delete N characters, clear input. Optional LLM-assisted fuzzy matching via [Ollama](https://ollama.ai) when exact match fails.
+- **Mouse Control** — Swipe to move cursor, tap for left click, long-press for right click, two-finger scroll.
+- **Virtual Keyboard** — Full on-screen keyboard with Ctrl, Alt, Shift, Win modifiers and common shortcuts.
+- **Clipboard Sync** — Server pushes PC clipboard to the phone; tap to copy.
+- **Cursor Shortcuts** — Quick buttons for "Jump to Cursor input" (Ctrl+I) and "New Agent" (Ctrl+N).
 
-## 使用方法
+## How It Works
 
+1. Run the app on your Windows PC. A QR code window opens.
+2. Scan the QR code with your phone (both devices must be on the same WiFi).
+3. Open the web page on your phone and start typing or speaking.
+4. Text is sent to the focused window on your PC via WebSocket.
 
-1.  电脑上打开软件，自动弹出二维码
-2. 手机浏览器扫描二维码，打开网页
-3. 关闭电脑上的二维码界面，将光标定位到需要输入的地方
-4. 在手机网页的输入框，开始语音输入，结束语音时，会自动同步到电脑
+The server listens only on `127.0.0.1`; access from your phone is via a LAN URL (e.g. `http://192.168.1.x:port`). HTTP and WebSocket share the same port.
 
-## LLM 辅助命令判断（可选）
+## Requirements
 
-启动时可使用本地小模型（如 qwen3.5:0.8b）进行**模糊命令匹配**。当语音识别的文字与配置的 `match-string` 不完全一致时，LLM 会尝试推断用户意图并匹配到最接近的指令。
+- Windows 10/11
+- Python 3.8+ (for development)
+- Same LAN for PC and phone
 
-**前置条件：**
-- 安装并运行 [Ollama](https://ollama.com)
-- 拉取模型：`ollama pull qwen3.5:0.8b`
+## Quick Start
 
-**设置方式：**
-- **界面设置**：打开二维码窗口，点击「设置」按钮，可配置：
-  - 启用 Ollama 辅助判断命令
-  - Ollama 地址（默认 `http://127.0.0.1:11434`）
-  - 模型名（默认 `qwen3.5:0.8b`）
-- **或手动编辑** `config.json`：
+### Option 1: Run from source
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the server
+python server.py
+```
+
+### Option 2: Build standalone executable
+
+1. Create `icon.ico` in the project root.
+2. Run `build.cmd`.
+3. Run `dist\CursorMobileVoiceInput.exe`.
+
+### Development mode
+
+```bash
+dev.cmd
+```
+
+Runs in dev mode: QR window only (no tray), closes when the QR window is closed.
+
+## Configuration
+
+Config is stored in `config.json` (next to the exe or in the project root). Key options:
+
+| Key | Description |
+|-----|-------------|
+| `user_ip` | Preferred LAN IP for QR code (null = auto-detect) |
+| `llm_enabled` | Enable LLM fuzzy command matching (default: false) |
+| `llm_model` | Ollama model name (e.g. `qwen3.5:0.8b`) |
+| `llm_base_url` | Ollama API URL (e.g. `http://127.0.0.1:11434`) |
+| `commands` | Custom voice commands (see below) |
+
+### Custom commands
+
+Add entries to `commands` in `config.json`:
+
 ```json
 {
-  "llm_enabled": true,
-  "llm_model": "qwen3.5:0.8b",
-  "llm_base_url": "http://127.0.0.1:11434"
+  "name": "Open LocalSend",
+  "match-string": "打开文件传输",
+  "command": "E:\\soft\\LocalSend\\localsend_app.exe",
+  "args": []
 }
 ```
 
-启用后，启动时会后台预加载模型，首次命令匹配会更快。
+- `match-string`: Exact or LLM-matched phrase to trigger the command.
+- `command`: Executable path or command.
+- `args`: Optional list of arguments.
 
-## 说明
+## Project Structure
 
-AI生成的小工具，三无产品，无售后，就是玩！！！
+| Module | Purpose |
+|--------|---------|
+| `server.py` | Main entry, startup, threading |
+| `paths.py` | Executable/resource path resolution |
+| `config_store.py` | Config load/save |
+| `settings.py` | Constants and behavior flags |
+| `ip_utils.py` | Port selection, IP enumeration, URL building |
+| `notifier.py` | Tray balloon and Windows Toast |
+| `input_control.py` | SendInput injection, focus, clipboard |
+| `commands.py` | Voice command parsing and execution |
+| `text_handler.py` | Deduplication, text/command dispatch |
+| `http_server.py` | Flask + WebSocket server |
+| `qr_window.py` | QR code window and IP selection |
+| `tray_app.py` | System tray menu |
+| `llm_assistant.py` | Optional Ollama-based command matching |
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for details.
 
+## License
+
+MIT License — see [LICENSE](LICENSE).
