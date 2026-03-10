@@ -152,12 +152,13 @@ def run_server(get_url_state):
 
     app = create_app(get_url_state)
     dev_mode = os.environ.get("LANVOICE_DEV") in ("1", "true", "yes")
+    use_reloader = dev_mode and os.environ.get("LANVOICE_NO_RELOADER") != "1"
     print(f"HTTP + WebSocket 运行于 http://127.0.0.1:{port} 和 ws://127.0.0.1:{port}/ws")
-    if dev_mode:
+    if use_reloader:
         print("[dev] 热重载已启用，修改 .py 后自动重启")
     app.run(
         host="127.0.0.1",
         port=port,
         debug=dev_mode,
-        use_reloader=dev_mode,
+        use_reloader=use_reloader,
     )

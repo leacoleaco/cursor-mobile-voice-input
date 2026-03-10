@@ -48,6 +48,10 @@ def main():
         refresh_urls()
 
     dev_mode = os.environ.get("LANVOICE_DEV") in ("1", "true", "yes")
+    # 调试模式关闭窗口即退出：禁用 reloader，单进程，不显示托盘
+    if dev_mode:
+        os.environ["LANVOICE_NO_RELOADER"] = "1"
+    dev_close_event = threading.Event() if dev_mode else None
     qr_mgr = QRWindowManager(
         get_user_ip=lambda: config_store.USER_IP,
         on_ip_change=on_ip_change,
@@ -57,6 +61,7 @@ def main():
         get_config_path=lambda: CONFIG_PATH_IN_USE,
         list_candidates=get_ipv4_candidates,
         dev_mode=dev_mode,
+        dev_close_event=dev_close_event,
     )
 
     print("\n======================================")
@@ -91,12 +96,16 @@ def main():
     # ✅ 启动后自动打开二维码窗口（加一点延迟更稳）
     threading.Timer(0.3, qr_mgr.show).start()
 
-    # 开发模式：Flask reloader 会 spawn 子进程，父进程不显示托盘，避免双托盘
-    if os.environ.get("LANVOICE_DEV") in ("1", "true", "yes") and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
-        import time
-        while True:
-            time.sleep(3600)
-    run_tray(qr_mgr)
+    if dev_mode:
+        # 调试模式：不显示托盘，仅 QR 窗口；关闭窗口即退出
+        dev_close_event.wait()
+    else:
+        # 开发模式且使用 reloader 时：父进程不显示托盘，避免双托盘
+        if os.environ.get("LANVOICE_NO_RELOADER") != "1" and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+            import time
+            while True:
+                time.sleep(3600)
+        run_tray(qr_mgr)
 
 
 if __name__ == "__main__":

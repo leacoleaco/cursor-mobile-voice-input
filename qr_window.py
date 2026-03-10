@@ -26,6 +26,7 @@ class QRWindowManager:
         list_candidates: Callable[[], List[Tuple[str, str]]],
         *,
         dev_mode: bool = False,
+        dev_close_event: Optional[threading.Event] = None,
     ):
         self.get_user_ip = get_user_ip
         self.on_ip_change = on_ip_change
@@ -35,6 +36,7 @@ class QRWindowManager:
         self.get_config_path = get_config_path
         self.list_candidates = list_candidates
         self.dev_mode = dev_mode
+        self.dev_close_event = dev_close_event
 
         self.cmd_q = queue.Queue()
         self.thread = threading.Thread(target=self._tk_thread, daemon=True)
@@ -100,6 +102,8 @@ class QRWindowManager:
 
         if self.dev_mode:
             self.root.quit()
+            if self.dev_close_event:
+                self.dev_close_event.set()
             os._exit(0)
 
     def _ensure_window(self):
