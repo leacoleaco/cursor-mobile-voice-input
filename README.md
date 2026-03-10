@@ -99,7 +99,8 @@ Add entries to `commands` in `config.json`:
 | `tray_app.py` | System tray menu |
 | `llm_assistant.py` | Optional Ollama-based command matching |
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for details.
+## Thanks
+**Special thanks to the author of https://github.com/bfilestor/lan-voice-input for open sourcing the project and inspiring me. The codebase made it possible for me to build and extend this remote voice input tool tailored for Cursor—it's doubled my workflow efficiency!**
 
 ## License
 
