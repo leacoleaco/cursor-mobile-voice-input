@@ -161,6 +161,7 @@ function setStatus(msg){
 }
 
 function setMode(mode){
+  const prevMode = currentMode;
   currentMode = mode;
   document.getElementById("modeTextBtn").classList.toggle("active", mode === "text");
   document.getElementById("modeCmdBtn").classList.toggle("active", mode === "cmd");
@@ -174,6 +175,18 @@ function setMode(mode){
   }
   log("✅ 切换模式：" + (mode === "text" ? "文字" : mode === "cmd" ? "命令" : "鼠标"));
   if(mode === "mouse") loadScreenshot();
+  else if(mode === "text" || mode === "cmd") {
+    const doFocus = () => {
+      inputBox.focus();
+      const len = (inputBox.value || "").length;
+      inputBox.setSelectionRange(len, len);
+    };
+    if(prevMode === "mouse"){
+      setTimeout(doFocus, 350);
+    }else{
+      doFocus();
+    }
+  }
 }
 
 async function connectWS(){
@@ -306,9 +319,17 @@ clipboardCopyBtn.onclick = async () => {
   }
 };
 
-document.getElementById("modeTextBtn").onclick = () => setMode("text");
-document.getElementById("modeCmdBtn").onclick = () => setMode("cmd");
-document.getElementById("modeMouseBtn").onclick = () => setMode("mouse");
+function bindModeBtn(id, mode){
+  const btn = document.getElementById(id);
+  const handler = (e) => {
+    e.preventDefault();
+    setMode(mode);
+  };
+  btn.addEventListener("pointerdown", handler);
+}
+bindModeBtn("modeTextBtn", "text");
+bindModeBtn("modeCmdBtn", "cmd");
+bindModeBtn("modeMouseBtn", "mouse");
 
 // Shortcut key buttons
 document.querySelectorAll(".shortcut-btn").forEach(btn => {
