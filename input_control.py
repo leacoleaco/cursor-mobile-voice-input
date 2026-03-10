@@ -29,6 +29,7 @@ VK_UP = 0x26
 VK_RIGHT = 0x27
 VK_DOWN = 0x28
 VK_I = 0x49
+VK_N = 0x4E
 VK_A = 0x41
 VK_C = 0x43
 VK_SHIFT = 0x10
@@ -318,6 +319,29 @@ def press_ctrl_i():
     up_i = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_I, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
     up_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
     _send_input([down_ctrl, down_i, up_i, up_ctrl])
+
+
+def press_ctrl_n():
+    """Press Ctrl+N to create new Agent in Cursor IDE."""
+    down_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    down_n = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_N, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    up_n = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_N, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    up_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    _send_input([down_ctrl, down_n, up_n, up_ctrl])
+
+
+def focus_cursor_and_press_ctrl_n() -> bool:
+    """
+    Find Cursor IDE window, activate it, then press Ctrl+N (new Agent).
+    Returns True if Cursor was found and activated, False otherwise.
+    """
+    hwnd = _find_cursor_window()
+    if not hwnd:
+        return False
+    if not _activate_window(hwnd):
+        return False
+    press_ctrl_n()
+    return True
 
 
 _LAST_FG_HWND = None

@@ -58,7 +58,7 @@ def handle_text_replace(text: str):
 def handle_text(text: str, mode: str = "text", replace: bool = False):
     text = text or ""
     text_stripped = text.strip()
-    if not replace and not text_stripped:
+    if not replace and not text_stripped and "\n" not in text:
         return
 
     mode = (mode or "text").strip() or "text"
