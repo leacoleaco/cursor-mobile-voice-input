@@ -21,6 +21,8 @@
     code { background: #f7f7f7; padding: 2px 6px; border-radius: 6px; }
     .mode-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
     .mode-btn { font-size: 15px; padding: 8px 12px; border-radius: 999px; }
+    .send-mode-switch { display: flex; gap: 8px; align-items: center; }
+    .send-mode-btn { font-size: 14px; padding: 6px 10px; }
     .mode-btn.active { background: #ffe5d6; border-color: #f6a17c; color: #7a2b12; }
     .action-btn { background: #fff; border-color: #cfcfcf; padding: 2px; }
     .action-btn:hover { background: #f2f2f2; }
@@ -83,6 +85,10 @@
       <textarea id="inputBox" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
     </div>
     <div class="actions" style="margin-top: 10px;">
+      <div class="send-mode-switch">
+        <button id="sendModeContinuousBtn" class="mode-btn send-mode-btn">连续发送</button>
+        <button id="sendModeManualBtn" class="mode-btn send-mode-btn active">手动发送</button>
+      </div>
       <button id="sendBtn" class="action-btn">📤 手动发送</button>
     </div>
     <div class="shortcut-keys">
@@ -143,6 +149,7 @@ let ws;
 let timer = null;
 let isComposing = false;
 let currentMode = "text";
+let sendMode = "manual"; // "continuous" | "manual"
 
 let lastSentText = "";
 let lastSentMsg = "";
@@ -284,6 +291,16 @@ function sendText(text){
     log("⚠️ 未连接 WebSocket，无法发送");
   }
 }
+
+function setSendMode(mode){
+  sendMode = mode;
+  document.getElementById("sendModeContinuousBtn").classList.toggle("active", mode === "continuous");
+  document.getElementById("sendModeManualBtn").classList.toggle("active", mode === "manual");
+  document.getElementById("sendBtn").textContent = mode === "continuous" ? "📤 发送" : "📤 手动发送";
+}
+
+document.getElementById("sendModeContinuousBtn").onclick = () => setSendMode("continuous");
+document.getElementById("sendModeManualBtn").onclick = () => setSendMode("manual");
 
 document.getElementById("sendBtn").onclick = () => {
   const box = document.getElementById("inputBox");
@@ -613,18 +630,13 @@ box.addEventListener("input", () => {
 });
 
 function flushDelta(){
+  if(sendMode !== "continuous") return;
   const current = box.value;
   if(!current.trim()) return;
 
-  if(current.startsWith(lastSentText)){
-    const delta = current.slice(lastSentText.length).trim();
-    if(delta){
-      sendText(delta);
-      lastSentText = current;
-    }
-  }else{
-    log("✏️ 检测到编辑历史内容：请点【手动发送】发送全文（自动增量暂停）");
-  }
+  sendText(current);
+  box.value = "";
+  lastSentText = "";
 }
 
 function showClipboard(content){
