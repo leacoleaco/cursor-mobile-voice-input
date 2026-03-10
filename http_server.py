@@ -11,7 +11,7 @@ from notifier import notify
 from paths import resource_path
 from screenshot import capture_screenshot
 from text_handler import handle_text
-from input_control import move_mouse, left_click, right_click, scroll_mouse
+from input_control import move_mouse, move_mouse_rel, left_click, right_click, scroll_mouse
 
 PORT: Optional[int] = None
 CLIENT_COUNT = 0
@@ -59,16 +59,21 @@ def schedule_broadcast(payload: dict) -> bool:
 
 
 def _handle_mouse(payload: dict):
-    """Handle mouse actions: move, left_click, right_click, scroll."""
+    """Handle mouse actions: move, move_rel, left_click, right_click, scroll."""
     action = (payload.get("action") or "").strip()
     x = payload.get("x")
     y = payload.get("y")
+    dx = payload.get("dx")
+    dy = payload.get("dy")
     delta = payload.get("delta", 0)
 
     try:
         if action == "move":
             if x is not None and y is not None:
                 move_mouse(int(x), int(y))
+        elif action == "move_rel":
+            if dx is not None and dy is not None:
+                move_mouse_rel(int(dx), int(dy))
         elif action == "left_click":
             if x is not None and y is not None:
                 move_mouse(int(x), int(y))
@@ -111,12 +116,8 @@ def create_app(get_url_state):
         result = capture_screenshot()
         if result is None:
             return jsonify({"ok": False, "error": "screenshot_failed"}), 500
-        b64, (left, top, width, height) = result
-        return jsonify({
-            "ok": True,
-            "image": b64,
-            "bounds": {"left": left, "top": top, "width": width, "height": height},
-        })
+        b64, bounds = result
+        return jsonify({"ok": True, "image": b64, "bounds": bounds})
 
     @sock.route("/ws")
     def websocket(ws):

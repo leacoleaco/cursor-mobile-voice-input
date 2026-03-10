@@ -23,20 +23,29 @@ def get_virtual_screen_bounds() -> Tuple[int, int, int, int]:
     return left, top, width, height
 
 
-def capture_screenshot() -> Optional[Tuple[str, Tuple[int, int, int, int]]]:
+def capture_screenshot() -> Optional[Tuple[str, dict]]:
     """
-    Capture all screens and return (base64_png_str, bounds).
-    bounds = (left, top, width, height) for mapping click coordinates.
-    Uses image dimensions for width/height to ensure correct coordinate mapping.
+    Capture all screens and return (base64_png_str, bounds_dict).
+    bounds_dict: left, top, width, height (image size), logicalWidth, logicalHeight
+    (from GetSystemMetrics - matches pyautogui/GetCursorPos coordinate system).
+    When image size differs from logical (DPI scaling), coordinates must be scaled.
     """
     try:
         img = ImageGrab.grab(all_screens=True)
         if img is None:
             return None
-        left, top, _, _ = get_virtual_screen_bounds()
-        w, h = img.size
+        left, top, logical_w, logical_h = get_virtual_screen_bounds()
+        img_w, img_h = img.size
         buf = io.BytesIO()
         img.save(buf, format="PNG")
-        return base64.b64encode(buf.getvalue()).decode("ascii"), (left, top, w, h)
+        bounds = {
+            "left": left,
+            "top": top,
+            "width": img_w,
+            "height": img_h,
+            "logicalWidth": logical_w,
+            "logicalHeight": logical_h,
+        }
+        return base64.b64encode(buf.getvalue()).decode("ascii"), bounds
     except Exception:
         return None

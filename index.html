@@ -38,6 +38,12 @@
     .mouse-screenshot-wrap img { display: block; width: 100%; height: auto; cursor: crosshair; }
     .mouse-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
     .mouse-actions button { margin-top: 0; }
+    .trackpad-overlay { display: none; position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; padding: 16px; box-sizing: border-box; }
+    .trackpad-overlay.show { display: flex; flex-direction: column; }
+    .trackpad-modal { background: #fff; border-radius: 12px; padding: 12px; max-width: 100%; width: 320px; display: flex; flex-direction: column; align-items: stretch; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    .trackpad-modal-title { font-size: 15px; color: #333; margin-bottom: 10px; text-align: center; }
+    .trackpad-area { width: 100%; height: 180px; background: #e8e8e8; border-radius: 8px; border: 2px solid #4a90d9; touch-action: none; user-select: none; -webkit-user-select: none; display: flex; align-items: center; justify-content: center; color: #888; font-size: 14px; }
+    .trackpad-btns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
   </style>
 </head>
 <body>
@@ -61,7 +67,7 @@
     </div>
   </div>
   <div class="panel-mouse">
-    <div class="hint">点击屏幕截图选择位置并左键点击；或先点击截图选位置，再使用下方按钮</div>
+    <div class="hint">第一次点击快速定位，弹出触控板滑动微调；或先点击选位置，再使用下方按钮</div>
     <div class="actions" style="margin-top: 8px;">
       <button id="mouseRefreshBtn" class="action-btn">🔄 刷新截图</button>
     </div>
@@ -87,6 +93,17 @@
     <div class="clipboard-hint">点击标题按钮即可复制，关闭后等待下一次推送自动再显示</div>
   </div>
   <div id="log"></div>
+
+  <div id="trackpadOverlay" class="trackpad-overlay">
+    <div class="trackpad-modal">
+      <div class="trackpad-modal-title">🖱 触控板 - 滑动微调位置</div>
+      <div id="trackpadArea" class="trackpad-area">在此滑动微调鼠标位置</div>
+      <div class="trackpad-btns">
+        <button id="trackpadLeftBtn" class="action-btn">左键</button>
+        <button id="trackpadCancelBtn" class="action-btn">取消</button>
+      </div>
+    </div>
+  </div>
 
 <script>
 let ws;
@@ -260,8 +277,9 @@ document.getElementById("modeMouseBtn").onclick = () => setMode("mouse");
 // --- Mouse control ---
 let screenshotBounds = null;
 let lastMousePos = null;
+const TRACKPAD_SENSITIVITY = 1.5;
 
-function sendMouseAction(action, x, y, delta){
+function sendMouseAction(action, x, y, delta, dx, dy){
   if(!ws || ws.readyState !== 1){
     log("⚠️ 未连接 WebSocket，无法发送鼠标指令");
     return;
@@ -269,6 +287,8 @@ function sendMouseAction(action, x, y, delta){
   const payload = { type: "mouse", action };
   if(x != null && y != null){ payload.x = Math.round(x); payload.y = Math.round(y); }
   if(delta != null) payload.delta = delta;
+  if(dx != null) payload.dx = Math.round(dx);
+  if(dy != null) payload.dy = Math.round(dy);
   ws.send(JSON.stringify(payload));
 }
 
@@ -295,26 +315,159 @@ async function loadScreenshot(){
   }
 }
 
-function imgClickToScreen(clientX, clientY, imgEl){
-  if(!screenshotBounds) return null;
+function imgClickToImagePixel(clientX, clientY, imgEl){
   const rect = imgEl.getBoundingClientRect();
   const rx = (clientX - rect.left) / rect.width;
   const ry = (clientY - rect.top) / rect.height;
-  const x = screenshotBounds.left + rx * screenshotBounds.width;
-  const y = screenshotBounds.top + ry * screenshotBounds.height;
-  return { x, y };
+  const imgX = rx * imgEl.naturalWidth;
+  const imgY = ry * imgEl.naturalHeight;
+  return { imgX, imgY };
 }
+
+function imagePixelToScreen(imgX, imgY){
+  if(!screenshotBounds) return null;
+  const w = screenshotBounds.width || 1;
+  const h = screenshotBounds.height || 1;
+  const lw = screenshotBounds.logicalWidth ?? w;
+  const lh = screenshotBounds.logicalHeight ?? h;
+  const scaleX = lw / w;
+  const scaleY = lh / h;
+  return {
+    x: screenshotBounds.left + imgX * scaleX,
+    y: screenshotBounds.top + imgY * scaleY
+  };
+}
+
+let trackpadLastX = null;
+let trackpadLastY = null;
+let trackpadAccumDx = 0;
+let trackpadAccumDy = 0;
+let trackpadThrottleTimer = null;
+const TRACKPAD_THROTTLE_MS = 50;
+const TRACKPAD_MIN_DELTA = 2;
+
+function showTrackpad(pos){
+  if(document.getElementById("trackpadOverlay").classList.contains("show")) return;
+  lastMousePos = pos;
+  sendMouseAction("move", pos.x, pos.y);
+  log("🖱 已定位，滑动触控板微调");
+  trackpadLastX = null;
+  trackpadLastY = null;
+  trackpadAccumDx = 0;
+  trackpadAccumDy = 0;
+  if(trackpadThrottleTimer) clearTimeout(trackpadThrottleTimer);
+  trackpadThrottleTimer = null;
+  document.getElementById("trackpadOverlay").classList.add("show");
+}
+
+function hideTrackpad(){
+  document.getElementById("trackpadOverlay").classList.remove("show");
+  trackpadLastX = null;
+  trackpadLastY = null;
+  trackpadAccumDx = 0;
+  trackpadAccumDy = 0;
+  if(trackpadThrottleTimer) clearTimeout(trackpadThrottleTimer);
+  trackpadThrottleTimer = null;
+}
+
+function flushTrackpadDelta(){
+  if(Math.abs(trackpadAccumDx) < 0.5 && Math.abs(trackpadAccumDy) < 0.5) return;
+  sendMouseAction("move_rel", null, null, null, trackpadAccumDx, trackpadAccumDy);
+  trackpadAccumDx = 0;
+  trackpadAccumDy = 0;
+  trackpadThrottleTimer = null;
+}
+
+function scheduleTrackpadFlush(){
+  if(trackpadThrottleTimer) return;
+  trackpadThrottleTimer = setTimeout(() => {
+    flushTrackpadDelta();
+  }, TRACKPAD_THROTTLE_MS);
+}
+
+function onTrackpadPointerDown(clientX, clientY){
+  trackpadLastX = clientX;
+  trackpadLastY = clientY;
+  trackpadAccumDx = 0;
+  trackpadAccumDy = 0;
+}
+
+function onTrackpadPointerMove(clientX, clientY){
+  if(trackpadLastX === null || trackpadLastY === null) return;
+  const dx = (clientX - trackpadLastX) * TRACKPAD_SENSITIVITY;
+  const dy = (clientY - trackpadLastY) * TRACKPAD_SENSITIVITY;
+  trackpadLastX = clientX;
+  trackpadLastY = clientY;
+  if(Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) return;
+  trackpadAccumDx += dx;
+  trackpadAccumDy += dy;
+  if(Math.abs(trackpadAccumDx) >= TRACKPAD_MIN_DELTA || Math.abs(trackpadAccumDy) >= TRACKPAD_MIN_DELTA){
+    scheduleTrackpadFlush();
+  }
+}
+
+function onTrackpadPointerUp(){
+  flushTrackpadDelta();
+  trackpadLastX = null;
+  trackpadLastY = null;
+  if(trackpadThrottleTimer){ clearTimeout(trackpadThrottleTimer); trackpadThrottleTimer = null; }
+}
+
+function setupTrackpadArea(){
+  const area = document.getElementById("trackpadArea");
+  area.onmousedown = (e) => { e.preventDefault(); onTrackpadPointerDown(e.clientX, e.clientY); };
+  area.onmousemove = (e) => { if(e.buttons) onTrackpadPointerMove(e.clientX, e.clientY); };
+  area.onmouseup = () => onTrackpadPointerUp();
+  area.onmouseleave = () => onTrackpadPointerUp();
+  area.ontouchstart = (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    onTrackpadPointerDown(t.clientX, t.clientY);
+  };
+  area.ontouchmove = (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    onTrackpadPointerMove(t.clientX, t.clientY);
+  };
+  area.ontouchend = area.ontouchcancel = () => onTrackpadPointerUp();
+}
+setupTrackpadArea();
 
 document.getElementById("mouseRefreshBtn").onclick = () => loadScreenshot();
 
 document.getElementById("mouseScreenshotImg").addEventListener("click", (e) => {
   const img = document.getElementById("mouseScreenshotImg");
-  const pos = imgClickToScreen(e.clientX, e.clientY, img);
-  if(pos){
-    lastMousePos = pos;
-    sendMouseAction("left_click", pos.x, pos.y);
-    log("🖱 左键点击 (" + Math.round(pos.x) + "," + Math.round(pos.y) + ")");
+  const { imgX, imgY } = imgClickToImagePixel(e.clientX, e.clientY, img);
+  const pos = imagePixelToScreen(imgX, imgY);
+  if(pos) showTrackpad(pos);
+});
+
+document.getElementById("mouseScreenshotImg").addEventListener("touchend", (e) => {
+  if(e.changedTouches && e.changedTouches[0]){
+    const t = e.changedTouches[0];
+    const img = document.getElementById("mouseScreenshotImg");
+    const rect = img.getBoundingClientRect();
+    if(t.clientX >= rect.left && t.clientX <= rect.right && t.clientY >= rect.top && t.clientY <= rect.bottom){
+      const { imgX, imgY } = imgClickToImagePixel(t.clientX, t.clientY, img);
+      const pos = imagePixelToScreen(imgX, imgY);
+      if(pos){
+        e.preventDefault();
+        showTrackpad(pos);
+      }
+    }
   }
+}, { passive: false });
+
+document.getElementById("trackpadLeftBtn").onclick = () => {
+  sendMouseAction("left_click");
+  log("🖱 左键点击");
+  hideTrackpad();
+};
+
+document.getElementById("trackpadCancelBtn").onclick = () => hideTrackpad();
+
+document.getElementById("trackpadOverlay").addEventListener("click", (e) => {
+  if(e.target.id === "trackpadOverlay") hideTrackpad();
 });
 
 document.getElementById("mouseRightBtn").onclick = () => {

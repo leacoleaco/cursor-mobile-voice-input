@@ -206,6 +206,11 @@ def move_mouse(x: int, y: int):
     pyautogui.moveTo(x, y)
 
 
+def move_mouse_rel(dx: int, dy: int):
+    """Move mouse by relative offset (for trackpad-style fine adjustment)."""
+    pyautogui.move(dx, dy)
+
+
 def left_click(x: Optional[int] = None, y: Optional[int] = None):
     """Left click at (x, y) or current position. Coordinates are virtual screen."""
     if x is not None and y is not None:
