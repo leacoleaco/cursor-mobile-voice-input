@@ -24,6 +24,7 @@ from input_control import (
     press_arrow,
     press_ctrl_i,
     focus_cursor_and_press_ctrl_i,
+    read_target_input_content,
 )
 
 PORT: Optional[int] = None
@@ -183,6 +184,7 @@ def create_app(get_url_state):
                 print("[ws] 收到：", raw)
                 msg_type = "text"
                 content = raw
+                payload = {}
                 if raw.startswith("{"):
                     try:
                         payload = json.loads(raw)
@@ -215,8 +217,19 @@ def create_app(get_url_state):
                             ws.send(json.dumps({"type": "key_result", **result}, ensure_ascii=False))
                         except Exception:
                             pass
+                elif msg_type == "sync_from_target":
+                    try:
+                        content = read_target_input_content()
+                        ws.send(json.dumps({"type": "sync_content", "string": content or ""}, ensure_ascii=False))
+                    except Exception as e:
+                        print(f"[sync_from_target] error: {e}")
+                        try:
+                            ws.send(json.dumps({"type": "sync_content", "string": "", "error": str(e)}, ensure_ascii=False))
+                        except Exception:
+                            pass
                 else:
-                    handle_text(str(content or ""), mode="text")
+                    replace = bool(payload.get("replace", False))
+                    handle_text(str(content or ""), mode="text", replace=replace)
 
         except Exception:
             pass

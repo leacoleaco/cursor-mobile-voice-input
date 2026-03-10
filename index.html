@@ -80,6 +80,7 @@
 
   <div class="hint">
     ✅ 使用步骤:点击输入框 → 调起键盘 → 🎙语音输入<br/>
+    📌 同步模式：先聚焦 PC 目标输入框，再点击此处可拉取内容；输入变化会自动同步到目标
   </div>
   <div class="mode-row">
     <button id="modeTextBtn" class="mode-btn active">✍ 文字</button>
@@ -92,13 +93,13 @@
     </div>
     <div class="actions" style="margin-top: 10px;">
       <div class="send-mode-switch">
-        <span class="send-mode-label">手动发送</span>
+        <span class="send-mode-label">单向发送</span>
         <label class="ios-switch">
-          <input type="checkbox" id="sendModeContinuous" />
+          <input type="checkbox" id="sendModeOneWay" />
           <span class="ios-switch-track"></span>
           <span class="ios-switch-thumb"></span>
         </label>
-        <span class="send-mode-label">连续发送</span>
+        <span class="send-mode-label">同步模式</span>
       </div>
       <button id="sendBtn" class="action-btn">📤 手动发送</button>
     </div>
@@ -161,7 +162,7 @@ let ws;
 let timer = null;
 let isComposing = false;
 let currentMode = "text";
-let sendMode = "manual"; // "continuous" | "manual"
+let sendMode = "sync"; // "sync" | "oneway" - default sync
 
 let lastSentText = "";
 let lastSentMsg = "";
@@ -265,6 +266,13 @@ async function connectWS(){
         log("✅ 命令结果：" + data.message);
       }else if(data && data.type === "key_result"){
         log(data.ok ? "✅ " + (data.message || "已定位 Cursor 输入框") : "⚠️ " + (data.message || "未找到 Cursor IDE 窗口"));
+      }else if(data && data.type === "sync_content"){
+        const box = document.getElementById("inputBox");
+        if(box && sendMode === "sync" && (currentMode === "text" || currentMode === "cmd")){
+          const content = data.string || "";
+          box.value = content;
+          log("📥 已从目标输入框同步内容");
+        }
       }else if(data && data.type === "clipboard"){
         showClipboard(data.string || "");
         log("🧲 收到服务器推送的剪贴板内容");
@@ -284,23 +292,23 @@ window.onload = () => {
   setTimeout(() => document.getElementById("inputBox").focus(), 200);
 };
 
-function sendText(text){
-  text = (text || "").trim();
-  if(!text) return;
+function sendText(text, replace){
+  text = text || "";
+  if(!replace && !text.trim()) return;
 
   const now = Date.now();
-  const dedupKey = currentMode + "::" + text;
+  const dedupKey = currentMode + "::" + (replace ? "sync::" : "") + text;
   if(dedupKey === lastSentMsg && (now - lastSentTime) < DUP_WINDOW_MS){
-    log("⏭️ 去重：短时间相同内容不发送 -> " + text);
+    log("⏭️ 去重：短时间相同内容不发送 -> " + (text.length > 30 ? text.slice(0,30) + "..." : text));
     return;
   }
   lastSentMsg = dedupKey;
   lastSentTime = now;
 
   if(ws && ws.readyState === 1){
-    const payload = { type: currentMode, string: text };
+    const payload = { type: replace ? "text" : currentMode, string: text, replace: !!replace };
     ws.send(JSON.stringify(payload));
-    log("📤 发送(" + (currentMode === "text" ? "文字" : "命令") + ")：" + text);
+    log("📤 发送(" + (replace ? "同步" : currentMode === "text" ? "文字" : "命令") + ")：" + (text.length > 50 ? text.slice(0,50) + "..." : text));
   } else {
     log("⚠️ 未连接 WebSocket，无法发送");
   }
@@ -308,20 +316,24 @@ function sendText(text){
 
 function setSendMode(mode){
   sendMode = mode;
-  const cb = document.getElementById("sendModeContinuous");
-  if(cb) cb.checked = (mode === "continuous");
-  document.getElementById("sendBtn").textContent = mode === "continuous" ? "📤 发送" : "📤 手动发送";
+  const cb = document.getElementById("sendModeOneWay");
+  if(cb) cb.checked = (mode === "sync");
+  document.getElementById("sendBtn").textContent = mode === "sync" ? "📤 同步输入框" : "📤 发送";
 }
 
-document.getElementById("sendModeContinuous").addEventListener("change", (e) => {
-  setSendMode(e.target.checked ? "continuous" : "manual");
+document.getElementById("sendModeOneWay").addEventListener("change", (e) => {
+  setSendMode(e.target.checked ? "sync" : "oneway");
 });
 
 document.getElementById("sendBtn").onclick = () => {
   const box = document.getElementById("inputBox");
-  sendText(box.value);
-  box.value = "";
-  lastSentText = "";
+  if(sendMode === "oneway"){
+    sendText(box.value, false);
+    box.value = "";
+    lastSentText = "";
+  }else{
+    sendText(box.value, true);
+  }
   box.focus();
 };
 
@@ -639,6 +651,12 @@ const box = document.getElementById("inputBox");
 box.addEventListener("compositionstart", () => isComposing = true);
 box.addEventListener("compositionend", () => { isComposing = false; flushDelta(); });
 
+box.addEventListener("focus", () => {
+  if(sendMode === "sync" && (currentMode === "text" || currentMode === "cmd") && ws && ws.readyState === 1){
+    ws.send(JSON.stringify({ type: "sync_from_target" }));
+  }
+});
+
 box.addEventListener("input", () => {
   clearTimeout(timer);
   if(isComposing) return;
@@ -646,13 +664,9 @@ box.addEventListener("input", () => {
 });
 
 function flushDelta(){
-  if(sendMode !== "continuous") return;
+  if(sendMode !== "sync") return;
   const current = box.value;
-  if(!current.trim()) return;
-
-  sendText(current);
-  box.value = "";
-  lastSentText = "";
+  sendText(current, true);
 }
 
 function showClipboard(content){

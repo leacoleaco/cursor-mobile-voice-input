@@ -3,7 +3,7 @@ import time
 from typing import Optional
 
 from commands import CommandResult, processor
-from input_control import backspace, focus_target, press_enter, send_unicode_text
+from input_control import backspace, focus_target, press_enter, select_all, send_unicode_text
 from notifier import notify
 from settings import SERVER_DEDUP_WINDOW_SEC, TEST_INJECT_TEXT
 
@@ -38,9 +38,27 @@ def execute_output(out):
         send_unicode_text(out)
 
 
-def handle_text(text: str, mode: str = "text"):
-    text = (text or "").strip()
-    if not text:
+def handle_text_replace(text: str):
+    """Replace target input content with text (Ctrl+A then type). Used for sync mode."""
+    text = text or ""
+    if server_dedup(text, "text_sync"):
+        return
+    if processor.paused:
+        notify("指令执行", f"⏸(暂停中) 同步")
+        return
+    focus_target()
+    select_all()
+    if text:
+        send_unicode_text(text)
+        processor.record_output(text)
+    else:
+        backspace(1)
+
+
+def handle_text(text: str, mode: str = "text", replace: bool = False):
+    text = text or ""
+    text_stripped = text.strip()
+    if not replace and not text_stripped:
         return
 
     mode = (mode or "text").strip() or "text"
@@ -63,6 +81,9 @@ def handle_text(text: str, mode: str = "text"):
         return
 
     if mode != "cmd":
+        if replace:
+            handle_text_replace(text)
+            return
         if processor.paused:
             notify("指令执行", f"⏸(暂停中) {text}")
             return

@@ -29,6 +29,8 @@ VK_UP = 0x26
 VK_RIGHT = 0x27
 VK_DOWN = 0x28
 VK_I = 0x49
+VK_A = 0x41
+VK_C = 0x43
 
 
 class MOUSEINPUT(ctypes.Structure):
@@ -269,6 +271,24 @@ def focus_cursor_and_press_ctrl_i() -> bool:
     return True
 
 
+def copy_selection():
+    """Press Ctrl+C to copy selected text to clipboard."""
+    down_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    down_c = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_C, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    up_c = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_C, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    up_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    _send_input([down_ctrl, down_c, up_c, up_ctrl])
+
+
+def select_all():
+    """Press Ctrl+A to select all text in focused input."""
+    down_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    down_a = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_A, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    up_a = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_A, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    up_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    _send_input([down_ctrl, down_a, up_a, up_ctrl])
+
+
 def press_ctrl_i():
     """Press Ctrl+I to focus Cursor IDE agent input box."""
     down_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
@@ -340,6 +360,16 @@ def scroll_mouse(delta: int, x: Optional[int] = None, y: Optional[int] = None):
         pyautogui.scroll(delta, x=x, y=y)
     else:
         pyautogui.scroll(delta)
+
+
+def read_target_input_content() -> str:
+    """Read content from focused input: select all, copy, return clipboard text.
+    Caller should ensure target has focus (e.g. user clicked it)."""
+    select_all()
+    time.sleep(0.05)
+    copy_selection()
+    time.sleep(0.08)
+    return get_clipboard_text()
 
 
 def get_clipboard_text() -> str:
