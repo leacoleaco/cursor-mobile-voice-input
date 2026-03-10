@@ -105,7 +105,7 @@
     <div class="shortcut-keys">
       <div class="shortcut-left">
         <button class="shortcut-btn" data-key="backspace" title="退格">⌫</button>
-        <button class="shortcut-btn" data-key="ctrl+i" title="Cursor 输入框 (Ctrl+I)">📝 Cursor</button>
+        <button class="shortcut-btn" data-key="ctrl+i" title="跳转 cursor 输入框 (Ctrl+I)">跳转cursor 输入框</button>
       </div>
       <div class="shortcut-right">
         <div class="shortcut-arrows">
@@ -393,7 +393,7 @@ document.querySelectorAll(".shortcut-btn").forEach(btn => {
       return;
     }
     ws.send(JSON.stringify({ type: "key", key }));
-    const keyLabel = key === "@" ? "@" : key === "enter" ? "回车" : key === "backspace" ? "退格" : key === "ctrl+i" ? "Cursor 输入框 (Ctrl+I)" : key;
+    const keyLabel = key === "@" ? "@" : key === "enter" ? "回车" : key === "backspace" ? "退格" : key === "ctrl+i" ? "跳转 cursor 输入框" : key;
     log("⌨️ 发送按键：" + keyLabel);
   };
 });
