@@ -3,9 +3,11 @@ Runtime configuration flags and shared constants for LAN Voice Input.
 Keep values here so behavior tweaks stay in one place.
 """
 
-# Auto-select ports starting from these defaults.
+# Auto-select port (HTTP and WebSocket share the same port).
 DEFAULT_HTTP_PORT = 8080
-DEFAULT_WS_PORT = 8765
+
+# QR code always displays localhost URL (http://127.0.0.1:port) for local access.
+QR_FORCE_LOCALHOST = True
 MAX_PORT_TRY = 50
 
 # Input behavior tuning.

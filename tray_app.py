@@ -10,7 +10,7 @@ from input_control import get_clipboard_text
 from notifier import notify, set_tray_icon
 from paths import resource_path
 from settings import CLIPBOARD_DEDUP_SEC
-from websocket_server import schedule_broadcast
+from http_server import schedule_broadcast
 
 CLIPBOARD_LAST_TEXT = ""
 CLIPBOARD_LAST_TIME = 0.0

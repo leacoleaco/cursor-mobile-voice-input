@@ -5,7 +5,7 @@ import socket
 import subprocess
 from typing import List, Optional, Tuple
 
-from settings import DEFAULT_HTTP_PORT, DEFAULT_WS_PORT, MAX_PORT_TRY
+from settings import DEFAULT_HTTP_PORT, MAX_PORT_TRY
 
 
 def is_port_free(port: int) -> bool:
@@ -146,7 +146,10 @@ def get_effective_ip(user_ip: Optional[str]) -> str:
     return get_lan_ip_best_effort()
 
 
-def build_urls(ip: str, http_port: int, ws_port: int):
+def build_urls(ip: str, http_port: int, ws_port: int = None):
+    """Build URLs. ws_port defaults to http_port (same port for HTTP+WebSocket)."""
+    if ws_port is None:
+        ws_port = http_port
     qr_url = f"http://{ip}:{http_port}"
-    qr_payload_url = f"{qr_url}?ws={ws_port}"
+    qr_payload_url = qr_url  # same port, no ?ws= needed
     return qr_url, qr_payload_url

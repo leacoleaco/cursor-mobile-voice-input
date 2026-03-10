@@ -10,7 +10,7 @@
 - `input_control.py`：SendInput 注入、焦点处理、剪贴板读取。
 - `commands.py`：语音指令解析、外部命令执行。
 - `text_handler.py`：去重、文本/指令执行入口。
-- `websocket_server.py`：WebSocket server 与广播。
+- `http_server.py`：HTTP + WebSocket 统一服务（同端口，仅 127.0.0.1）。
 - `http_server.py`：Flask 静态页面与 /config 接口。
 - `qr_window.py`：Tk QR 窗口与网卡/IP 选择。
 - `tray_app.py`：系统托盘菜单与剪贴板发送。

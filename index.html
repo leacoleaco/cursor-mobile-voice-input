@@ -91,28 +91,9 @@ function setMode(mode){
   log("✅ 切换模式：" + (mode === "text" ? "文字" : "命令"));
 }
 
-function getWSFromQuery(){
-  const url = new URL(location.href);
-  return url.searchParams.get("ws");
-}
-
-async function resolveWSPort(){
-  const wsFromQuery = getWSFromQuery();
-  if(wsFromQuery) return wsFromQuery;
-
-  // fallback: fetch /config
-  try{
-    const res = await fetch("/config");
-    const cfg = await res.json();
-    return cfg.ws_port;
-  }catch(e){
-    return 8765; // fallback
-  }
-}
-
 async function connectWS(){
-  const wsPort = await resolveWSPort();
-  const wsUrl = `ws://${location.hostname}:${wsPort}`;
+  // HTTP and WebSocket share same port; connect to /ws on same host
+  const wsUrl = `ws://${location.host}/ws`;
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
