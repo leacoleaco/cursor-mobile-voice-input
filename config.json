@@ -26,5 +26,8 @@
       "command": "E:\\soft\\opencode\\opencode.exe",
       "args": []
     }
-  ]
+  ],
+  "llm_enabled": true,
+  "llm_model": "qwen3.5:0.8b",
+  "llm_base_url": "http://127.0.0.1:11434"
 }

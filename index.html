@@ -10,6 +10,8 @@
     button { font-size: 18px; padding: 12px 16px; margin-top: 10px; border-radius: 10px; border: 1px solid #d7d7d7; background: #f7f7f7; color: #222; box-shadow: 0 1px 0 rgba(0,0,0,0.04); }
     button:active { transform: translateY(1px); }
     #log { margin-top: 14px; white-space: pre-wrap; border: 1px solid #ddd; padding: 10px; border-radius: 8px; min-height: 120px; }
+    #llmStream { margin-top: 8px; padding: 10px 12px; border-radius: 8px; background: #f0f7ff; border: 1px solid #b8d4f0; font-size: 15px; color: #1a4d7a; display: none; }
+    #llmStream.active { display: block; }
     .status { margin-top: 10px; font-size: 14px; color: #555; }
     .hint { margin-top: 10px; font-size: 13px; color: #666; line-height: 1.4; }
     code { background: #f7f7f7; padding: 2px 6px; border-radius: 6px; }
@@ -49,6 +51,7 @@
   </div>
 
   <div class="status" id="status">状态：未连接</div>
+  <div id="llmStream" class=""></div>
   <div id="clipboardPanel" class="clipboard-panel">
     <div class="clipboard-header">
       <button id="clipboardCopyBtn" class="clip-btn" aria-label="复制服务器剪贴板">📋 复制</button>
@@ -111,11 +114,34 @@ async function connectWS(){
     log("❌ WebSocket 错误");
   };
 
+  const llmStreamEl = document.getElementById("llmStream");
+  function showLlmStream(text){
+    if(!text){
+      llmStreamEl.classList.remove("active");
+      llmStreamEl.textContent = "";
+      return;
+    }
+    llmStreamEl.classList.add("active");
+    llmStreamEl.textContent = "🤖 大模型输出：" + text;
+  }
+
   ws.onmessage = (event) => {
     try{
       const data = JSON.parse(event.data);
-      if(data && data.type === "cmd_result"){
-        log("✅ 收到命令结果：" + data.message);
+      if(data && data.type === "cmd_progress"){
+        const step = data.step || "";
+        const msg = data.message || "";
+        if(step === "llm_judging"){ showLlmStream("正在用 LLM 判断..."); log("🤖 " + msg); }
+        else if(step === "llm_stream") showLlmStream(msg);
+        else if(step === "matched"){ showLlmStream(""); log("✓ " + msg); }
+        else if(step === "executing"){ showLlmStream(""); log("▶ " + msg); }
+        else if(step === "done"){ showLlmStream(""); log("✅ " + msg); }
+        else if(step === "no_match"){ showLlmStream(""); log("⚠ " + msg); }
+        else if(step === "error"){ showLlmStream(""); log("❌ " + msg); }
+        else{ showLlmStream(""); log("ℹ " + msg); }
+      }else if(data && data.type === "cmd_result"){
+        showLlmStream("");
+        log("✅ 命令结果：" + data.message);
       }else if(data && data.type === "clipboard"){
         showClipboard(data.string || "");
         log("🧲 收到服务器推送的剪贴板内容");

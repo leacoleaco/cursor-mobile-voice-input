@@ -1,4 +1,4 @@
-"""Tkinter QR window with IP selection."""
+"""Tkinter QR window with IP selection and Ollama settings."""
 import queue
 import threading
 from typing import Callable, List, Optional, Tuple
@@ -7,6 +7,8 @@ import qrcode
 import tkinter as tk
 from PIL import Image, ImageTk
 from tkinter import ttk
+
+import config_store
 
 
 class QRWindowManager:
@@ -112,6 +114,9 @@ class QRWindowManager:
         btn_auto = ttk.Button(header, text="自动推荐", command=self._on_auto_ip)
         btn_auto.pack(side="left", padx=(6, 0))
 
+        btn_settings = ttk.Button(header, text="设置", command=self._show_settings)
+        btn_settings.pack(side="left", padx=(6, 0))
+
         self.combo.bind("<<ComboboxSelected>>", lambda e: self._on_ip_selected())
 
         self.img_label = ttk.Label(self.top)
@@ -167,6 +172,54 @@ class QRWindowManager:
         self._reload_ip_list_and_select_current()
         self._refresh_qr_and_text()
 
+    def _show_settings(self):
+        """Open Ollama settings dialog."""
+        dlg = tk.Toplevel(self.top if self.top else self.root)
+        dlg.title("Ollama 设置")
+        dlg.transient(self.top if self.top else self.root)
+        dlg.grab_set()
+        dlg.resizable(False, False)
+
+        f = ttk.Frame(dlg, padding=12)
+        f.pack(fill="both", expand=True)
+
+        # Enable checkbox
+        var_enabled = tk.BooleanVar(value=config_store.LLM_ENABLED)
+        cb = ttk.Checkbutton(f, text="启用 Ollama 辅助判断命令", variable=var_enabled)
+        cb.pack(anchor="w", pady=(0, 10))
+
+        # Base URL
+        ttk.Label(f, text="Ollama 地址：").pack(anchor="w")
+        entry_url = ttk.Entry(f, width=42)
+        entry_url.insert(0, config_store.LLM_BASE_URL or "http://127.0.0.1:11434")
+        entry_url.pack(fill="x", pady=(2, 8))
+
+        # Model
+        ttk.Label(f, text="模型：").pack(anchor="w")
+        entry_model = ttk.Entry(f, width=42)
+        entry_model.insert(0, config_store.LLM_MODEL or "qwen3.5:0.8b")
+        entry_model.pack(fill="x", pady=(2, 12))
+
+        def on_ok():
+            url = (entry_url.get() or "").strip() or "http://127.0.0.1:11434"
+            model = (entry_model.get() or "").strip() or "qwen3.5:0.8b"
+            config_store.LLM_ENABLED = var_enabled.get()
+            config_store.LLM_BASE_URL = url
+            config_store.LLM_MODEL = model
+            config_store.save_config()
+            dlg.destroy()
+
+        def on_cancel():
+            dlg.destroy()
+
+        btn_f = ttk.Frame(f)
+        btn_f.pack(fill="x", pady=(4, 0))
+        ttk.Button(btn_f, text="确定", command=on_ok).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_f, text="取消", command=on_cancel).pack(side="left")
+
+        dlg.update_idletasks()
+        dlg.geometry(f"+{dlg.winfo_screenwidth()//2 - dlg.winfo_reqwidth()//2}+{dlg.winfo_screenheight()//2 - dlg.winfo_reqheight()//2}")
+
     def _refresh_qr_and_text(self):
         url = self.get_payload_url() or ""
         if not url:
@@ -184,12 +237,14 @@ class QRWindowManager:
         ip_show = self.get_effective_ip()
         mode = "手动" if (self.get_user_ip() and self.get_user_ip().strip()) else "自动"
         http_port, ws_port = self.get_ports()
+        llm_line = f"LLM：{config_store.LLM_MODEL} (已启用)" if config_store.LLM_ENABLED else "LLM：未启用"
         self.tip_label.configure(
             text=f"手机扫码打开网页（同一 WiFi / 同网段）\n"
             f"模式：{mode}  IP：{ip_show}\n"
             f"HTTP:{http_port}  WS:{ws_port}\n"
-            f"关闭此窗口不影响后台运行"
-            f"\n配置文件：{self.get_config_path()}"
+            f"{llm_line}\n"
+            f"关闭此窗口不影响后台运行\n"
+            f"配置文件：{self.get_config_path()}"
         )
 
     def _show_window(self):

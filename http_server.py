@@ -6,7 +6,7 @@ from typing import Optional, Set
 from flask import Flask, jsonify, send_file
 from flask_sock import Sock
 
-from commands import execute_command, match_command
+from commands import handle_command_with_llm
 from notifier import notify
 from paths import resource_path
 from text_handler import handle_text
@@ -113,17 +113,17 @@ def create_app(get_url_state):
 
                 if msg_type == "cmd":
                     text_cmd = str(content or "").strip()
-                    if match_command(text_cmd):
-                        result = execute_command(text_cmd)
-                        resp = {
-                            "type": "cmd_result",
-                            "string": text_cmd,
-                            "ok": bool(result.output.get("ok")) if isinstance(result.output, dict) else False,
-                            "message": result.output.get("message") if isinstance(result.output, dict) else result.display_text,
-                        }
-                        ws.send(json.dumps(resp, ensure_ascii=False))
-                    else:
-                        handle_text(text_cmd, mode="cmd")
+                    def send_progress(payload: dict):
+                        try:
+                            ws.send(json.dumps(payload, ensure_ascii=False))
+                        except Exception:
+                            pass
+                    def send_result(payload: dict):
+                        try:
+                            ws.send(json.dumps(payload, ensure_ascii=False))
+                        except Exception:
+                            pass
+                    handle_command_with_llm(text_cmd, send_progress, send_result)
                 else:
                     handle_text(str(content or ""), mode="text")
 
@@ -143,11 +143,21 @@ def create_app(get_url_state):
 
 
 def run_server(get_url_state):
+    import os
+
     global PORT
     state = get_url_state()
     port = state.get("http_port")
     set_port(port)
 
     app = create_app(get_url_state)
+    dev_mode = os.environ.get("LANVOICE_DEV") in ("1", "true", "yes")
     print(f"HTTP + WebSocket 运行于 http://127.0.0.1:{port} 和 ws://127.0.0.1:{port}/ws")
-    app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
+    if dev_mode:
+        print("[dev] 热重载已启用，修改 .py 后自动重启")
+    app.run(
+        host="127.0.0.1",
+        port=port,
+        debug=dev_mode,
+        use_reloader=dev_mode,
+    )

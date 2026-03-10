@@ -3,7 +3,7 @@ import re
 import shlex
 import subprocess
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 import config_store
 from settings import CLEAR_BACKSPACE_MAX
@@ -75,6 +75,27 @@ class CommandProcessor:
 
 processor = CommandProcessor()
 
+# Canonical command strings for LLM (built-in + aliases collapsed to canonical)
+BUILTIN_CANDIDATES = [
+    "暂停输入",
+    "继续输入",
+    "换行",
+    "逗号", "句号", "问号", "感叹号", "冒号", "分号", "顿号",
+    "删除上一句",
+    "删除 N 个字",  # LLM matches "删3个字" etc.; we parse N from raw text
+    "清空",
+]
+
+
+def get_all_command_candidates() -> List[str]:
+    """All command candidates for LLM: built-in + config match-strings."""
+    candidates = list(BUILTIN_CANDIDATES)
+    for cmd in config_store.COMMANDS:
+        ms = (cmd.get("match-string") or "").strip()
+        if ms and ms not in candidates:
+            candidates.append(ms)
+    return candidates
+
 
 def _build_command_args(command, args) -> List[str]:
     if isinstance(command, str) and command.strip():
@@ -97,7 +118,49 @@ def match_command(text: str) -> Optional[dict]:
         match_string = (cmd.get("match-string") or "").strip()
         if match_string and match_string == text:
             return cmd
+    # LLM-assisted fuzzy matching when exact match fails
+    if config_store.LLM_ENABLED and config_store.COMMANDS:
+        try:
+            from llm_assistant import resolve_command_via_llm
+            candidates = [
+                (c.get("match-string") or "").strip()
+                for c in config_store.COMMANDS
+                if (c.get("match-string") or "").strip()
+            ]
+            if candidates:
+                resolved = resolve_command_via_llm(
+                    text, candidates,
+                    model=config_store.LLM_MODEL,
+                    base_url=config_store.LLM_BASE_URL,
+                )
+                if resolved:
+                    for cmd in config_store.COMMANDS:
+                        if (cmd.get("match-string") or "").strip() == resolved:
+                            return cmd
+        except Exception:
+            pass
     return None
+
+
+def execute_config_command_by_match_string(match_string: str) -> CommandResult:
+    """Execute a config command by its match-string."""
+    for cmd in config_store.COMMANDS:
+        ms = (cmd.get("match-string") or "").strip()
+        if ms == match_string:
+            args = _build_command_args(cmd.get("command"), cmd.get("args"))
+            if not args:
+                return CommandResult(True, f"命令配置错误：{match_string}", {"ok": False, "message": "命令配置错误"})
+            try:
+                completed = subprocess.run(args, capture_output=True, text=True)
+                ok = completed.returncode == 0
+                stderr = (completed.stderr or "").strip()
+                msg = f"指令执行成功：{match_string}" if ok else f"指令执行失败：{match_string}（exit {completed.returncode}）"
+                if stderr:
+                    msg = f"{msg} - {stderr}"
+                return CommandResult(True, msg, {"ok": ok, "message": msg})
+            except Exception as e:
+                return CommandResult(True, f"指令执行异常：{match_string} - {e}", {"ok": False, "message": str(e)})
+    return CommandResult(True, f"未找到指令：{match_string}", {"ok": False, "message": f"未找到指令：{match_string}"})
 
 
 def execute_command(text: str) -> CommandResult:
@@ -122,3 +185,132 @@ def execute_command(text: str) -> CommandResult:
         return CommandResult(True, msg, {"ok": ok, "message": msg})
     except Exception as e:
         return CommandResult(True, f"指令执行异常：{text} - {e}", {"ok": False, "message": f"指令执行异常：{e}"})
+
+
+def handle_command_with_llm(
+    raw_text: str,
+    send_progress: Callable[[dict], None],
+    send_result: Callable[[dict], None],
+) -> None:
+    """
+    Handle command mode with LLM judgment and progress visualization.
+    When LLM disabled, falls back to exact match + built-in processor.
+    """
+    text = (raw_text or "").strip()
+    if not text:
+        return
+
+    print(f"[cmd] 收到命令: {text}")
+
+    from text_handler import server_dedup
+    if server_dedup(text, "cmd"):
+        print("[cmd] 去重跳过")
+        return
+
+    if not config_store.LLM_ENABLED:
+        # Fallback: exact match for config, then built-in processor
+        cmd = match_command(text)
+        if cmd:
+            ms = (cmd.get("match-string") or "").strip()
+            print(f"[cmd] matched: {ms}")
+            send_progress({"type": "cmd_progress", "step": "matched", "message": f"匹配到：{ms}"})
+            result = execute_command(text)
+            print(f"[cmd] result: {result.output.get('message') if isinstance(result.output, dict) else result.display_text}")
+            send_result({
+                "type": "cmd_result",
+                "string": text,
+                "ok": bool(result.output.get("ok")) if isinstance(result.output, dict) else False,
+                "message": result.output.get("message") if isinstance(result.output, dict) else result.display_text,
+            })
+            return
+        # Built-in processor
+        result = processor.handle(text)
+        if result.output == "":
+            print(f"[cmd] done: {result.display_text}")
+            send_progress({"type": "cmd_progress", "step": "done", "message": result.display_text})
+            send_result({"type": "cmd_result", "string": text, "ok": True, "message": result.display_text})
+            return
+        # Execute output (backspace, enter, or text)
+        from text_handler import execute_output
+        from input_control import focus_target
+        focus_target()
+        execute_output(result.output)
+        if not result.handled and isinstance(result.output, str):
+            processor.record_output(result.output)
+        print(f"[cmd] done: {result.display_text}")
+        send_progress({"type": "cmd_progress", "step": "done", "message": result.display_text})
+        send_result({"type": "cmd_result", "string": text, "ok": True, "message": result.display_text})
+        return
+
+    # LLM-enabled path
+    candidates = get_all_command_candidates()
+    print("[log] candidates: ", candidates)
+    if not candidates:
+        print("[cmd] error: 无可用指令")
+        send_progress({"type": "cmd_progress", "step": "error", "message": "无可用指令"})
+        send_result({"type": "cmd_result", "string": text, "ok": False, "message": "无可用指令"})
+        return
+
+    def on_progress(step: str, msg: str):
+        print(f"[cmd] {step}: {msg}")
+        send_progress({"type": "cmd_progress", "step": step, "message": msg})
+
+    def on_stream(accumulated: str):
+        print(f"[cmd] 大模型输出: {accumulated}", flush=True)
+        send_progress({"type": "cmd_progress", "step": "llm_stream", "message": accumulated})
+        send_progress({"type": "cmd_progress", "step": "llm_stream", "message": accumulated})
+
+    try:
+        from llm_assistant import resolve_command_with_progress
+        resolved = resolve_command_with_progress(
+            text, candidates,
+            model=config_store.LLM_MODEL,
+            base_url=config_store.LLM_BASE_URL,
+            on_progress=on_progress,
+            on_stream=on_stream,
+        )
+    except Exception as e:
+        print(f"[cmd] error: LLM 异常 - {e}")
+        on_progress("error", str(e))
+        send_result({"type": "cmd_result", "string": text, "ok": False, "message": f"LLM 异常：{e}"})
+        return
+
+    if not resolved:
+        print(f"[cmd] 未匹配到指令: {text}")
+        send_result({"type": "cmd_result", "string": text, "ok": False, "message": "未匹配到指令"})
+        return
+
+    # Execute: config command or built-in
+    print(f"[cmd] executing: {resolved}")
+    send_progress({"type": "cmd_progress", "step": "executing", "message": f"执行：{resolved}"})
+
+    if resolved in [(c.get("match-string") or "").strip() for c in config_store.COMMANDS if (c.get("match-string") or "").strip()]:
+        result = execute_config_command_by_match_string(resolved)
+        msg = result.output.get("message") if isinstance(result.output, dict) else result.display_text
+        ok = bool(result.output.get("ok")) if isinstance(result.output, dict) else False
+        print(f"[cmd] result: {msg}" + (" (失败)" if not ok else ""))
+        send_result({
+            "type": "cmd_result",
+            "string": text,
+            "ok": ok,
+            "message": msg,
+        })
+        return
+
+    # Built-in: use raw text for "删除 N 个字" so we can parse the number
+    exec_text = text if resolved == "删除 N 个字" else resolved
+    result = processor.handle(exec_text)
+    if result.output == "":
+        print(f"[cmd] done: {result.display_text}")
+        send_progress({"type": "cmd_progress", "step": "done", "message": result.display_text})
+        send_result({"type": "cmd_result", "string": text, "ok": True, "message": result.display_text})
+        return
+    from text_handler import execute_output
+    from input_control import focus_target
+    focus_target()
+    execute_output(result.output)
+    if not result.handled and isinstance(result.output, str):
+        processor.record_output(result.output)
+    print(f"[cmd] done: {result.display_text}")
+    send_progress({"type": "cmd_progress", "step": "done", "message": result.display_text})
+    send_result({"type": "cmd_result", "string": text, "ok": True, "message": result.display_text})

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """Main entry point for LAN Voice Input (modularized)."""
 import asyncio
+import os
 import sys
 import threading
 
@@ -64,9 +65,22 @@ def main():
     print("CONFIG(primary):", CONFIG_PATH_PRIMARY)
     print("CONFIG(fallback):", CONFIG_PATH_FALLBACK)
     print("CONFIG(in use):", CONFIG_PATH_IN_USE)
+    if config_store.LLM_ENABLED:
+        print("LLM 辅助:", config_store.LLM_MODEL, "@", config_store.LLM_BASE_URL, "(命令模糊匹配)")
     print("======================================\n")
 
     threading.Thread(target=lambda: run_server(get_url_state), daemon=True).start()
+
+    # Optional: preload LLM model in background when enabled
+    if config_store.LLM_ENABLED:
+        def _preload_llm():
+            try:
+                from llm_assistant import preload_model
+                if preload_model(config_store.LLM_MODEL, config_store.LLM_BASE_URL):
+                    print(f"✅ LLM 模型已预加载: {config_store.LLM_MODEL}")
+            except Exception as e:
+                print(f"⚠️ LLM 预加载跳过: {e}")
+        threading.Thread(target=_preload_llm, daemon=True).start()
 
     notify(
         "LANVoiceInput 启动成功",
@@ -75,6 +89,11 @@ def main():
     # ✅ 启动后自动打开二维码窗口（加一点延迟更稳）
     threading.Timer(0.3, qr_mgr.show).start()
 
+    # 开发模式：Flask reloader 会 spawn 子进程，父进程不显示托盘，避免双托盘
+    if os.environ.get("LANVOICE_DEV") in ("1", "true", "yes") and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        import time
+        while True:
+            time.sleep(3600)
     run_tray(qr_mgr)
 
 
