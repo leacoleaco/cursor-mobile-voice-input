@@ -40,7 +40,7 @@
     .action-buttons button[data-key] { min-width: 48px; min-height: 32px; }
     .shortcut-keys { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
     .shortcut-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .shortcut-coffee-stack { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .shortcut-coffee-stack { display: flex; flex-direction: row; align-items: center; gap: 8px; }
     .shortcut-btn { font-size: 20px; padding: 14px 18px; min-width: 52px; min-height: 52px; border-radius: 12px; border: 1px solid #c0c0c0; background: #f8f8f8; color: #333; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
     .shortcut-btn:active { transform: translateY(1px); background: #e8e8e8; }
     .shortcut-btn.coffee { background: #e8d5b5; border-color: #d4a574; color: #5c4033; }
@@ -83,8 +83,7 @@
   </div>
 
   <div class="hint">
-    ✅ 使用步骤:点击输入框 → 调起键盘 → 🎙语音输入<br/>
-    📌 同步模式：先聚焦 PC 目标输入框，再点击此处可拉取内容；输入变化会自动同步到目标
+    ✅ 使用步骤:点击输入框 → 调起键盘 → 🎙语音输入
   </div>
   <div class="mode-row">
     <button id="modeTextBtn" class="mode-btn active">✍ 文字</button>
@@ -97,17 +96,17 @@
     </div>
     <div class="action" style="margin-top: 10px;">
       <div class="send-mode-switch">
-        <span class="send-mode-label">单向发送</span>
+        <span class="send-mode-label">自动发送</span>
         <label class="ios-switch">
-          <input type="checkbox" id="sendModeOneWay" />
+          <input type="checkbox" id="sendModeManual" />
           <span class="ios-switch-track"></span>
           <span class="ios-switch-thumb"></span>
         </label>
-        <span class="send-mode-label">同步模式</span>
+        <span class="send-mode-label">手动发送</span>
       </div>
       <div class="action-buttons">
-        <button id="sendBtn" class="action-btn">📤 手动发送</button>
-        <button id="newlineBtn" class="action-btn" title="Shift+Enter 换行">↵ 换行</button>
+        <button id="sendBtn" class="action-btn">📤 发送</button>
+        <button id="newlineBtn" class="action-btn" title="Shift+Enter 换行">换行</button>
         <button id="clearInputBtn" class="action-btn" title="清空输入框">🗑 清空</button>
         <button class="action-btn" data-key="backspace" title="退格">⌫</button>
       </div>
@@ -122,7 +121,7 @@
         </div>
         <div class="shortcut-coffee-stack">
           <button class="shortcut-btn coffee" data-key="@">@</button>
-          <button class="shortcut-btn coffee" data-key="enter" title="回车">↵</button>
+          <button class="shortcut-btn coffee" data-key="enter" title="回车">↵ 回车</button>
         </div>
       </div>
       <div class="shortcut-row">
@@ -171,7 +170,7 @@ let ws;
 let timer = null;
 let isComposing = false;
 let currentMode = "text";
-let sendMode = "oneway"; // "sync" | "oneway" - default oneway
+let sendMode = "auto"; // "auto" | "manual" - default auto
 
 let lastSentText = "";
 let lastSentMsg = "";
@@ -286,13 +285,6 @@ async function connectWS(){
         log("✅ 命令结果：" + data.message);
       }else if(data && data.type === "key_result"){
         log(data.ok ? "✅ " + (data.message || "已定位 Cursor 输入框") : "⚠️ " + (data.message || "未找到 Cursor IDE 窗口"));
-      }else if(data && data.type === "sync_content"){
-        const box = document.getElementById("inputBox");
-        if(box && sendMode === "sync" && (currentMode === "text" || currentMode === "cmd")){
-          const content = data.string || "";
-          box.value = content;
-          log("📥 已从目标输入框同步内容");
-        }
       }else if(data && data.type === "clipboard"){
         showClipboard(data.string || "");
         log("🧲 收到服务器推送的剪贴板内容");
@@ -337,24 +329,21 @@ function sendText(text, replace){
 
 function setSendMode(mode){
   sendMode = mode;
-  const cb = document.getElementById("sendModeOneWay");
-  if(cb) cb.checked = (mode === "sync");
-  document.getElementById("sendBtn").textContent = mode === "sync" ? "📤 同步输入框" : "📤 发送";
+  if(timer){ clearTimeout(timer); timer = null; }
+  const cb = document.getElementById("sendModeManual");
+  if(cb) cb.checked = (mode === "manual");
+  log("✅ 发送模式：" + (mode === "auto" ? "自动发送" : "手动发送"));
 }
 
-document.getElementById("sendModeOneWay").addEventListener("change", (e) => {
-  setSendMode(e.target.checked ? "sync" : "oneway");
+document.getElementById("sendModeManual").addEventListener("change", (e) => {
+  setSendMode(e.target.checked ? "manual" : "auto");
 });
 
 document.getElementById("sendBtn").onclick = () => {
   const box = document.getElementById("inputBox");
-  if(sendMode === "oneway"){
-    sendText(box.value, false);
-    box.value = "";
-    lastSentText = "";
-  }else{
-    sendText(box.value, true);
-  }
+  sendText(box.value, false);
+  box.value = "";
+  lastSentText = "";
   box.focus();
 };
 
@@ -373,7 +362,6 @@ document.getElementById("clearInputBtn").onclick = () => {
   box.value = "";
   lastSentText = "";
   box.focus();
-  if(sendMode === "sync") sendText("", true);
 };
 
 document.getElementById("clearBtn").onclick = () => {
@@ -688,24 +676,30 @@ document.getElementById("mouseScrollDownBtn").onclick = () => {
 
 const box = document.getElementById("inputBox");
 box.addEventListener("compositionstart", () => isComposing = true);
-box.addEventListener("compositionend", () => { isComposing = false; flushDelta(); });
-
-box.addEventListener("focus", () => {
-  if(sendMode === "sync" && (currentMode === "text" || currentMode === "cmd") && ws && ws.readyState === 1){
-    ws.send(JSON.stringify({ type: "sync_from_target" }));
+box.addEventListener("compositionend", () => {
+  isComposing = false;
+  if(sendMode === "auto" && (currentMode === "text" || currentMode === "cmd")){
+    clearTimeout(timer);
+    timer = setTimeout(autoSendAfterIdle, 1000);
   }
 });
 
 box.addEventListener("input", () => {
   clearTimeout(timer);
   if(isComposing) return;
-  timer = setTimeout(flushDelta, 500);
+  if(sendMode === "auto" && (currentMode === "text" || currentMode === "cmd")){
+    timer = setTimeout(autoSendAfterIdle, 1000);
+  }
 });
 
-function flushDelta(){
-  if(sendMode !== "sync") return;
-  const current = box.value;
-  sendText(current, true);
+function autoSendAfterIdle(){
+  if(sendMode !== "auto" || (currentMode !== "text" && currentMode !== "cmd")) return;
+  const current = (box.value || "").trim();
+  if(!current) return;
+  sendText(current, false);
+  box.value = "";
+  lastSentText = "";
+  log("📤 自动发送（1秒无输入）");
 }
 
 function showClipboard(content){
