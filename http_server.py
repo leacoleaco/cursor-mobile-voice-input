@@ -194,7 +194,7 @@ def create_app(get_url_state):
                 if not raw:
                     continue
 
-                print("[ws] 收到：", raw)
+                # print("[ws] 收到：", raw)
                 msg_type = "text"
                 content = raw
                 payload = {}

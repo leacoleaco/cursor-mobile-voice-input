@@ -63,16 +63,12 @@
     .panel-mouse { display: none; }
     body.mode-mouse .panel-text-cmd { display: none; }
     body.mode-mouse .panel-mouse { display: block; }
-    .mouse-screenshot-wrap { margin-top: 12px; overflow: auto; max-height: 50vh; border: 1px solid #ddd; border-radius: 10px; background: #f0f0f0; }
-    .mouse-screenshot-wrap img { display: block; width: 100%; height: auto; cursor: crosshair; }
     .mouse-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
     .mouse-actions button { margin-top: 0; }
-    .trackpad-overlay { display: none; position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; padding: 16px; box-sizing: border-box; }
-    .trackpad-overlay.show { display: flex; flex-direction: column; }
-    .trackpad-modal { background: #fff; border-radius: 12px; padding: 12px; max-width: 100%; width: 320px; display: flex; flex-direction: column; align-items: stretch; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
-    .trackpad-modal-title { font-size: 15px; color: #333; margin-bottom: 10px; text-align: center; }
-    .trackpad-area { width: 100%; height: 180px; background: #e8e8e8; border-radius: 8px; border: 2px solid #4a90d9; touch-action: none; user-select: none; -webkit-user-select: none; display: flex; align-items: center; justify-content: center; color: #888; font-size: 14px; }
-    .trackpad-btns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+    .mouse-trackpad-wrap { margin-top: 12px; min-height: 280px; border: 2px solid #4a90d9; border-radius: 12px; background: linear-gradient(145deg, #e8e8e8 0%, #d8d8d8 100%); touch-action: none; user-select: none; -webkit-user-select: none; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+    .mouse-trackpad-wrap::before { content: "滑动移动 · 单击左键 · 长按右键 · 双指滚动"; color: #888; font-size: 14px; pointer-events: none; }
+    .mouse-trackpad-wrap.active-drag { background: linear-gradient(145deg, #d0e4f7 0%, #b8d4f0 100%); }
+    .mouse-trackpad-wrap.active-scroll { background: linear-gradient(145deg, #e8f0d8 0%, #d8e8c8 100%); }
   </style>
 </head>
 <body>
@@ -131,17 +127,13 @@
     </div>
   </div>
   <div class="panel-mouse">
-    <div class="hint">第一次点击快速定位，弹出触控板滑动微调；或先点击选位置，再使用下方按钮</div>
+    <div class="hint">滑动触控板移动光标，单击左键，长按右键，双指上下滑动滚动</div>
     <div class="actions" style="margin-top: 8px;">
-      <button id="mouseRefreshBtn" class="action-btn">🔄 刷新截图</button>
       <button id="mouseRightBtn" class="action-btn">🖱 右键</button>
       <button id="mouseScrollUpBtn" class="action-btn">⬆ 滚轮上</button>
       <button id="mouseScrollDownBtn" class="action-btn">⬇ 滚轮下</button>
     </div>
-    <div id="mouseScreenshotWrap" class="mouse-screenshot-wrap">
-      <div id="mouseScreenshotPlaceholder" style="padding: 40px; text-align: center; color: #888;">点击「刷新截图」加载屏幕</div>
-      <img id="mouseScreenshotImg" alt="屏幕截图" style="display: none;" />
-    </div>
+    <div id="mouseTrackpad" class="mouse-trackpad-wrap"></div>
   </div>
 
   <div id="llmStream" class=""></div>
@@ -152,17 +144,6 @@
     </div>
     <div id="clipboardText" class="clipboard-text"></div>
     <div class="clipboard-hint">点击标题按钮即可复制，关闭后等待下一次推送自动再显示</div>
-  </div>
-
-  <div id="trackpadOverlay" class="trackpad-overlay">
-    <div class="trackpad-modal">
-      <div class="trackpad-modal-title">🖱 触控板 - 滑动微调位置</div>
-      <div id="trackpadArea" class="trackpad-area">在此滑动微调鼠标位置</div>
-      <div class="trackpad-btns">
-        <button id="trackpadLeftBtn" class="action-btn">左键</button>
-        <button id="trackpadCancelBtn" class="action-btn">取消</button>
-      </div>
-    </div>
   </div>
 
 <script>
@@ -217,8 +198,7 @@ function setMode(mode){
     inputBox.placeholder = "点击这里调起输入法（推荐用手机键盘语音输入）";
   }
   log("✅ 切换模式：" + (mode === "text" ? "文字" : mode === "cmd" ? "命令" : "鼠标"));
-  if(mode === "mouse") loadScreenshot();
-  else if(mode === "text" || mode === "cmd") {
+  if(mode === "text" || mode === "cmd") {
     const doFocus = () => {
       inputBox.focus();
       const len = (inputBox.value || "").length;
@@ -437,10 +417,13 @@ document.querySelectorAll(".shortcut-btn, button[data-key]").forEach(btn => {
   };
 });
 
-// --- Mouse control ---
-let screenshotBounds = null;
-let lastMousePos = null;
+// --- Mouse control (touchpad) ---
 const TRACKPAD_SENSITIVITY = 1.5;
+const TAP_MAX_MOVE = 8;
+const LONG_PRESS_MS = 500;
+const TRACKPAD_THROTTLE_MS = 50;
+const TRACKPAD_MIN_DELTA = 2;
+const SCROLL_SENSITIVITY = 80;
 
 function sendMouseAction(action, x, y, delta, dx, dy){
   if(!ws || ws.readyState !== 1){
@@ -455,75 +438,23 @@ function sendMouseAction(action, x, y, delta, dx, dy){
   ws.send(JSON.stringify(payload));
 }
 
-async function loadScreenshot(silent){
-  const placeholder = document.getElementById("mouseScreenshotPlaceholder");
-  const img = document.getElementById("mouseScreenshotImg");
-  if(!silent){
-    placeholder.textContent = "加载中...";
-    img.style.display = "none";
-  }
-  try{
-    const r = await fetch("/api/screenshot");
-    const data = await r.json();
-    if(!data.ok || !data.image){
-      if(!silent) placeholder.textContent = "截图失败";
-      return;
-    }
-    img.src = "data:image/png;base64," + data.image;
-    img.style.display = "block";
-    placeholder.style.display = "none";
-    screenshotBounds = data.bounds || { left: 0, top: 0, width: 0, height: 0 };
-    if(!silent) log("🖱 屏幕截图已加载");
-  }catch(e){
-    if(!silent){
-      placeholder.textContent = "加载失败：" + e.message;
-      log("⚠️ 截图加载失败：" + e.message);
-    }
-  }
-}
-
-function silentRefreshScreenshot(){
-  setTimeout(() => {
-    if(currentMode === "mouse" && screenshotBounds) loadScreenshot(true);
-  }, 400);
-}
-
-function imgClickToImagePixel(clientX, clientY, imgEl){
-  const rect = imgEl.getBoundingClientRect();
-  const rx = (clientX - rect.left) / rect.width;
-  const ry = (clientY - rect.top) / rect.height;
-  const imgX = rx * imgEl.naturalWidth;
-  const imgY = ry * imgEl.naturalHeight;
-  return { imgX, imgY };
-}
-
-function imagePixelToScreen(imgX, imgY){
-  if(!screenshotBounds) return null;
-  const w = screenshotBounds.width || 1;
-  const h = screenshotBounds.height || 1;
-  const lw = screenshotBounds.logicalWidth ?? w;
-  const lh = screenshotBounds.logicalHeight ?? h;
-  const scaleX = lw / w;
-  const scaleY = lh / h;
-  return {
-    x: screenshotBounds.left + imgX * scaleX,
-    y: screenshotBounds.top + imgY * scaleY
-  };
-}
-
 let trackpadLastX = null;
 let trackpadLastY = null;
 let trackpadAccumDx = 0;
 let trackpadAccumDy = 0;
 let trackpadThrottleTimer = null;
-const TRACKPAD_THROTTLE_MS = 50;
-const TRACKPAD_MIN_DELTA = 2;
+let trackpadDownX = null;
+let trackpadTotalMove = 0;
+let trackpadLongPressTimer = null;
+let trackpadIsLongPress = false;
+let trackpadScrollMode = false;
+let trackpadScrollLastY = null;
 
-function showTrackpad(pos){
+function _unused_showTrackpad(pos){
   if(document.getElementById("trackpadOverlay").classList.contains("show")) return;
   lastMousePos = pos;
   sendMouseAction("move", pos.x, pos.y);
-  log("🖱 已定位，滑动触控板微调");
+  log("touchpad");
   trackpadLastX = null;
   trackpadLastY = null;
   trackpadAccumDx = 0;
@@ -558,19 +489,45 @@ function scheduleTrackpadFlush(){
   }, TRACKPAD_THROTTLE_MS);
 }
 
-function onTrackpadPointerDown(clientX, clientY){
+function onTrackpadPointerDown(clientX, clientY, isRightButton){
+  trackpadDownX = clientX;
+  trackpadTotalMove = 0;
+  trackpadIsLongPress = false;
   trackpadLastX = clientX;
   trackpadLastY = clientY;
   trackpadAccumDx = 0;
   trackpadAccumDy = 0;
+  if(isRightButton){
+    sendMouseAction("right_click");
+    log("🖱 右键点击");
+    return;
+  }
+  trackpadLongPressTimer = setTimeout(() => {
+    trackpadIsLongPress = true;
+    const el = document.getElementById("mouseTrackpad");
+    if(el){ el.classList.remove("active-drag"); el.classList.add("active-scroll"); }
+  }, LONG_PRESS_MS);
 }
 
 function onTrackpadPointerMove(clientX, clientY){
+  if(trackpadScrollMode){
+    if(trackpadScrollLastY !== null){
+      const dy = trackpadScrollLastY - clientY;
+      if(Math.abs(dy) > 2) sendMouseAction("scroll", null, null, Math.round(dy * 0.5));
+    }
+    trackpadScrollLastY = clientY;
+    return;
+  }
   if(trackpadLastX === null || trackpadLastY === null) return;
   const dx = (clientX - trackpadLastX) * TRACKPAD_SENSITIVITY;
   const dy = (clientY - trackpadLastY) * TRACKPAD_SENSITIVITY;
   trackpadLastX = clientX;
   trackpadLastY = clientY;
+  trackpadTotalMove += Math.abs(dx) + Math.abs(dy);
+  if(trackpadLongPressTimer && trackpadTotalMove > TAP_MAX_MOVE){
+    clearTimeout(trackpadLongPressTimer);
+    trackpadLongPressTimer = null;
+  }
   if(Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) return;
   trackpadAccumDx += dx;
   trackpadAccumDy += dy;
@@ -580,98 +537,86 @@ function onTrackpadPointerMove(clientX, clientY){
 }
 
 function onTrackpadPointerUp(){
+  const el = document.getElementById("mouseTrackpad");
+  if(el) el.classList.remove("active-drag", "active-scroll");
+  if(trackpadLongPressTimer){ clearTimeout(trackpadLongPressTimer); trackpadLongPressTimer = null; }
+  if(trackpadScrollMode){
+    trackpadScrollMode = false;
+    trackpadScrollLastY = null;
+    trackpadLastX = null;
+    trackpadLastY = null;
+    return;
+  }
   flushTrackpadDelta();
+  const wasTap = trackpadTotalMove <= TAP_MAX_MOVE && !trackpadIsLongPress;
+  if(wasTap && trackpadDownX !== null){
+    sendMouseAction("left_click");
+    log("🖱 左键点击");
+  }else if(trackpadIsLongPress){
+    sendMouseAction("right_click");
+    log("🖱 右键点击（长按）");
+  }
   trackpadLastX = null;
   trackpadLastY = null;
+  trackpadDownX = null;
   if(trackpadThrottleTimer){ clearTimeout(trackpadThrottleTimer); trackpadThrottleTimer = null; }
 }
 
 function setupTrackpadArea(){
-  const area = document.getElementById("trackpadArea");
-  area.onmousedown = (e) => { e.preventDefault(); onTrackpadPointerDown(e.clientX, e.clientY); };
+  const area = document.getElementById("mouseTrackpad");
+  if(!area) return;
+  area.onmousedown = (e) => {
+    e.preventDefault();
+    area.classList.add("active-drag");
+    const isRight = e.button === 2;
+    onTrackpadPointerDown(e.clientX, e.clientY, isRight);
+  };
   area.onmousemove = (e) => { if(e.buttons) onTrackpadPointerMove(e.clientX, e.clientY); };
-  area.onmouseup = () => onTrackpadPointerUp();
+  area.onmouseup = (e) => { e.preventDefault(); onTrackpadPointerUp(); };
   area.onmouseleave = () => onTrackpadPointerUp();
+  area.oncontextmenu = (e) => e.preventDefault();
   area.ontouchstart = (e) => {
     e.preventDefault();
-    const t = e.touches[0];
-    onTrackpadPointerDown(t.clientX, t.clientY);
+    if(e.touches.length >= 2){
+      trackpadScrollMode = true;
+      trackpadScrollLastY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      area.classList.add("active-scroll");
+      if(trackpadLongPressTimer){ clearTimeout(trackpadLongPressTimer); trackpadLongPressTimer = null; }
+    }else if(e.touches.length === 1){
+      area.classList.add("active-drag");
+      onTrackpadPointerDown(e.touches[0].clientX, e.touches[0].clientY, false);
+    }
   };
   area.ontouchmove = (e) => {
     e.preventDefault();
-    const t = e.touches[0];
-    onTrackpadPointerMove(t.clientX, t.clientY);
+    if(e.touches.length >= 2){
+      const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      onTrackpadPointerMove(0, cy);
+    }else if(e.touches.length === 1 && !trackpadScrollMode){
+      onTrackpadPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+    }
   };
-  area.ontouchend = area.ontouchcancel = () => onTrackpadPointerUp();
+  area.ontouchend = area.ontouchcancel = (e) => {
+    e.preventDefault();
+    if(e.touches.length < 2) trackpadScrollMode = false;
+    if(e.touches.length === 0) onTrackpadPointerUp();
+  };
 }
 setupTrackpadArea();
 
-document.getElementById("mouseRefreshBtn").onclick = () => loadScreenshot();
-
-document.getElementById("mouseScreenshotImg").addEventListener("click", (e) => {
-  const img = document.getElementById("mouseScreenshotImg");
-  const { imgX, imgY } = imgClickToImagePixel(e.clientX, e.clientY, img);
-  const pos = imagePixelToScreen(imgX, imgY);
-  if(pos) showTrackpad(pos);
-});
-
-document.getElementById("mouseScreenshotImg").addEventListener("touchend", (e) => {
-  if(e.changedTouches && e.changedTouches[0]){
-    const t = e.changedTouches[0];
-    const img = document.getElementById("mouseScreenshotImg");
-    const rect = img.getBoundingClientRect();
-    if(t.clientX >= rect.left && t.clientX <= rect.right && t.clientY >= rect.top && t.clientY <= rect.bottom){
-      const { imgX, imgY } = imgClickToImagePixel(t.clientX, t.clientY, img);
-      const pos = imagePixelToScreen(imgX, imgY);
-      if(pos){
-        e.preventDefault();
-        showTrackpad(pos);
-      }
-    }
-  }
-}, { passive: false });
-
-document.getElementById("trackpadLeftBtn").onclick = () => {
-  sendMouseAction("left_click");
-  log("🖱 左键点击");
-  hideTrackpad();
-  silentRefreshScreenshot();
-};
-
-document.getElementById("trackpadCancelBtn").onclick = () => hideTrackpad();
-
-document.getElementById("trackpadOverlay").addEventListener("click", (e) => {
-  if(e.target.id === "trackpadOverlay") hideTrackpad();
-});
-
 document.getElementById("mouseRightBtn").onclick = () => {
-  if(lastMousePos){
-    sendMouseAction("right_click", lastMousePos.x, lastMousePos.y);
-    log("🖱 右键点击 (" + Math.round(lastMousePos.x) + "," + Math.round(lastMousePos.y) + ")");
-    silentRefreshScreenshot();
-  }else{
-    log("⚠️ 请先点击截图选择位置");
-  }
+  sendMouseAction("right_click");
+  log("🖱 右键点击");
 };
 
 document.getElementById("mouseScrollUpBtn").onclick = () => {
-  if(lastMousePos){
-    sendMouseAction("scroll", lastMousePos.x, lastMousePos.y, 3);
-    log("🖱 滚轮向上");
-    silentRefreshScreenshot();
-  }else{
-    log("⚠️ 请先点击截图选择位置");
-  }
+  sendMouseAction("scroll", null, null, SCROLL_SENSITIVITY);
+  log("🖱 滚轮向上");
 };
 
 document.getElementById("mouseScrollDownBtn").onclick = () => {
-  if(lastMousePos){
-    sendMouseAction("scroll", lastMousePos.x, lastMousePos.y, -3);
-    log("🖱 滚轮向下");
-    silentRefreshScreenshot();
-  }else{
-    log("⚠️ 请先点击截图选择位置");
-  }
+  sendMouseAction("scroll", null, null, -SCROLL_SENSITIVITY);
+  log("🖱 滚轮向下");
 };
 
 const box = document.getElementById("inputBox");
@@ -680,7 +625,7 @@ box.addEventListener("compositionend", () => {
   isComposing = false;
   if(sendMode === "auto" && (currentMode === "text" || currentMode === "cmd")){
     clearTimeout(timer);
-    timer = setTimeout(autoSendAfterIdle, 1000);
+    timer = setTimeout(autoSendAfterIdle, 1500);
   }
 });
 
@@ -688,7 +633,7 @@ box.addEventListener("input", () => {
   clearTimeout(timer);
   if(isComposing) return;
   if(sendMode === "auto" && (currentMode === "text" || currentMode === "cmd")){
-    timer = setTimeout(autoSendAfterIdle, 1000);
+    timer = setTimeout(autoSendAfterIdle, 1500);
   }
 });
 
