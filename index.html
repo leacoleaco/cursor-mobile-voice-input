@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>局域网语音输入</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <style>
+    body { font-family: sans-serif; padding: 16px; }
+    textarea { width: 100%; height: 140px; font-size: 18px; padding: 12px; margin-top: 12px; border-radius: 10px; border: 1px solid #ddd;box-sizing: border-box;resize: vertical; display: block ;overflow: auto;  }
+    button { font-size: 18px; padding: 12px 16px; margin-top: 10px; border-radius: 10px; border: 1px solid #d7d7d7; background: #f7f7f7; color: #222; box-shadow: 0 1px 0 rgba(0,0,0,0.04); }
+    button:active { transform: translateY(1px); }
+    #log { margin-top: 14px; white-space: pre-wrap; border: 1px solid #ddd; padding: 10px; border-radius: 8px; min-height: 120px; }
+    .status { margin-top: 10px; font-size: 14px; color: #555; }
+    .hint { margin-top: 10px; font-size: 13px; color: #666; line-height: 1.4; }
+    code { background: #f7f7f7; padding: 2px 6px; border-radius: 6px; }
+    .mode-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .mode-btn { font-size: 15px; padding: 8px 12px; border-radius: 999px; }
+    .mode-btn.active { background: #ffe5d6; border-color: #f6a17c; color: #7a2b12; }
+    .action-btn { background: #fff; border-color: #cfcfcf; }
+    .action-btn:hover { background: #f2f2f2; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: flex-start; margin-top: 4px; }
+    .clipboard-panel { display: none; position: relative; margin-top: 14px; padding: 14px 16px 16px; border-radius: 14px; background: #f4f4f4; border: 1px solid #d8d8d8; box-shadow: inset 4px 4px 10px rgba(0,0,0,0.12), inset -4px -4px 10px rgba(255,255,255,0.8); }
+    .clipboard-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .clipboard-title { font-weight: 600; color: #333; }
+    .clipboard-text { white-space: pre-wrap; word-break: break-word; color: #222; font-size: 15px; line-height: 1.6; user-select: text; }
+    .clipboard-hint { margin-top: 8px; font-size: 12px; color: #666; }
+    .clip-close { position: absolute; right: 10px; top: 10px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid #c0c0c0; background: linear-gradient(145deg, #fefefe, #dcdcdc); box-shadow: 0 2px 4px rgba(0,0,0,0.12); display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: 700; color: #555; }
+    .clip-close:active { transform: translateY(1px); }
+    .clip-btn { position: relative; top: -10px; border: 1px solid #c0c0c0; background: linear-gradient(145deg, #fefefe, #dcdcdc); box-shadow: 0 2px 4px rgba(0,0,0,0.12); border-radius: 12px; padding: 6px 10px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; color: #444; }
+    .clip-btn:active { transform: translateY(1px); }
+  </style>
+</head>
+<body>
+  <h2 style="text-align: center;">手机输入 → 电脑同步</h2>
+
+  <div class="hint">
+    ✅ 使用步骤:点击输入框 → 调起键盘 → 🎙语音输入<br/>
+  </div>
+  <div class="mode-row">
+    <button id="modeTextBtn" class="mode-btn active">✍ 文字</button>
+    <button id="modeCmdBtn" class="mode-btn">⚡ 命令</button>
+  </div>
+  <div style="width: 100%">
+    <textarea id="inputBox" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
+  </div>
+  <div class="actions">
+    <button id="sendBtn" class="action-btn">📤 手动发送</button>
+    <button id="clearBtn" class="action-btn">🧹 清空日志</button>
+  </div>
+
+  <div class="status" id="status">状态：未连接</div>
+  <div id="clipboardPanel" class="clipboard-panel">
+    <div class="clipboard-header">
+      <button id="clipboardCopyBtn" class="clip-btn" aria-label="复制服务器剪贴板">📋 复制</button>
+      <div id="clipboardClose" class="clip-close" aria-label="关闭">×</div>
+    </div>
+    <div id="clipboardText" class="clipboard-text"></div>
+    <div class="clipboard-hint">点击标题按钮即可复制，关闭后等待下一次推送自动再显示</div>
+  </div>
+  <div id="log"></div>
+
+<script>
+let ws;
+let timer = null;
+let isComposing = false;
+let currentMode = "text";
+
+let lastSentText = "";
+let lastSentMsg = "";
+let lastSentTime = 0;
+const DUP_WINDOW_MS = 1500;
+const clipboardPanel = document.getElementById("clipboardPanel");
+const clipboardText = document.getElementById("clipboardText");
+const clipboardClose = document.getElementById("clipboardClose");
+const clipboardCopyBtn = document.getElementById("clipboardCopyBtn");
+
+function log(msg){
+  const el = document.getElementById("log");
+  el.textContent += msg + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(msg){
+  document.getElementById("status").textContent = "状态：" + msg;
+}
+
+function setMode(mode){
+  currentMode = mode;
+  document.getElementById("modeTextBtn").classList.toggle("active", mode === "text");
+  document.getElementById("modeCmdBtn").classList.toggle("active", mode === "cmd");
+  log("✅ 切换模式：" + (mode === "text" ? "文字" : "命令"));
+}
+
+function getWSFromQuery(){
+  const url = new URL(location.href);
+  return url.searchParams.get("ws");
+}
+
+async function resolveWSPort(){
+  const wsFromQuery = getWSFromQuery();
+  if(wsFromQuery) return wsFromQuery;
+
+  // fallback: fetch /config
+  try{
+    const res = await fetch("/config");
+    const cfg = await res.json();
+    return cfg.ws_port;
+  }catch(e){
+    return 8765; // fallback
+  }
+}
+
+async function connectWS(){
+  const wsPort = await resolveWSPort();
+  const wsUrl = `ws://${location.hostname}:${wsPort}`;
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    setStatus("✅ WebSocket 已连接");
+    log("✅ 已连接到：" + wsUrl);
+  };
+
+  ws.onclose = () => {
+    setStatus("❌ WebSocket 断开");
+    log("❌ 连接断开");
+  };
+
+  ws.onerror = () => {
+    setStatus("❌ 连接错误");
+    log("❌ WebSocket 错误");
+  };
+
+  ws.onmessage = (event) => {
+    try{
+      const data = JSON.parse(event.data);
+      if(data && data.type === "cmd_result"){
+        log("✅ 收到命令结果：" + data.message);
+      }else if(data && data.type === "clipboard"){
+        showClipboard(data.string || "");
+        log("🧲 收到服务器推送的剪贴板内容");
+        if((data.string || "").trim()){
+          const preview = data.string.length > 80 ? data.string.slice(0,80) + "..." : data.string;
+          log("📥 剪贴板预览：" + preview);
+        }
+      }
+    }catch(e){
+      log("⚠️ 非 JSON 消息或解析失败：" + e);
+    }
+  };
+}
+connectWS();
+
+window.onload = () => {
+  setTimeout(() => document.getElementById("inputBox").focus(), 200);
+};
+
+function sendText(text){
+  text = (text || "").trim();
+  if(!text) return;
+
+  const now = Date.now();
+  const dedupKey = currentMode + "::" + text;
+  if(dedupKey === lastSentMsg && (now - lastSentTime) < DUP_WINDOW_MS){
+    log("⏭️ 去重：短时间相同内容不发送 -> " + text);
+    return;
+  }
+  lastSentMsg = dedupKey;
+  lastSentTime = now;
+
+  if(ws && ws.readyState === 1){
+    const payload = { type: currentMode, string: text };
+    ws.send(JSON.stringify(payload));
+    log("📤 发送(" + (currentMode === "text" ? "文字" : "命令") + ")：" + text);
+  } else {
+    log("⚠️ 未连接 WebSocket，无法发送");
+  }
+}
+
+document.getElementById("sendBtn").onclick = () => {
+  const box = document.getElementById("inputBox");
+  sendText(box.value);
+  box.value = "";
+  lastSentText = "";
+  box.focus();
+};
+
+document.getElementById("clearBtn").onclick = () => {
+  const box = document.getElementById("inputBox");
+  box.value = "";
+  lastSentText = "";
+  document.getElementById("log").textContent = "";
+  box.focus();
+};
+
+
+clipboardCopyBtn.onclick = async () => {
+  const text = clipboardText.textContent || "";
+  if(!text.trim()){
+    log("ℹ️ 没有可复制的服务器剪贴板内容");
+    return;
+  }
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(text);
+    }else{
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(clipboardText);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      document.execCommand("copy");
+      sel.removeAllRanges();
+    }
+    log("✅ 已复制服务器剪贴板内容");
+  }catch(e){
+    log("⚠️ 复制失败：" + e);
+  }
+};
+
+document.getElementById("modeTextBtn").onclick = () => setMode("text");
+document.getElementById("modeCmdBtn").onclick = () => setMode("cmd");
+
+const box = document.getElementById("inputBox");
+box.addEventListener("compositionstart", () => isComposing = true);
+box.addEventListener("compositionend", () => { isComposing = false; flushDelta(); });
+
+box.addEventListener("input", () => {
+  clearTimeout(timer);
+  if(isComposing) return;
+  timer = setTimeout(flushDelta, 500);
+});
+
+function flushDelta(){
+  const current = box.value;
+  if(!current.trim()) return;
+
+  if(current.startsWith(lastSentText)){
+    const delta = current.slice(lastSentText.length).trim();
+    if(delta){
+      sendText(delta);
+      lastSentText = current;
+    }
+  }else{
+    log("✏️ 检测到编辑历史内容：请点【手动发送】发送全文（自动增量暂停）");
+  }
+}
+
+function showClipboard(content){
+  const text = (content || "").trim();
+  if(!text){
+    clipboardPanel.style.display = "none";
+    log("ℹ️ 收到空剪贴板内容，隐藏面板");
+    return;
+  }
+  clipboardText.textContent = text;
+  clipboardPanel.style.display = "block";
+  log("📌 剪贴板面板已显示，可长按复制");
+}
+
+clipboardClose.onclick = () => {
+  clipboardPanel.style.display = "none";
+};
+</script>
+</body>
+</html>
