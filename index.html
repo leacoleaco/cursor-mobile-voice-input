@@ -21,8 +21,14 @@
     code { background: #f7f7f7; padding: 2px 6px; border-radius: 6px; }
     .mode-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
     .mode-btn { font-size: 15px; padding: 8px 12px; border-radius: 999px; }
-    .send-mode-switch { display: flex; gap: 8px; align-items: center; }
-    .send-mode-btn { font-size: 14px; padding: 6px 10px; }
+    .send-mode-switch { display: flex; align-items: center; gap: 10px; }
+    .send-mode-label { font-size: 14px; color: #666; }
+    .ios-switch { position: relative; display: inline-block; width: 51px; height: 31px; flex-shrink: 0; cursor: pointer; }
+    .ios-switch input { opacity: 0; width: 0; height: 0; }
+    .ios-switch-track { position: absolute; inset: 0; background: #e9e9eb; border-radius: 31px; transition: background 0.25s ease; }
+    .ios-switch-thumb { position: absolute; height: 27px; width: 27px; left: 2px; top: 2px; background: #fff; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: transform 0.25s ease; }
+    .ios-switch input:checked + .ios-switch-track { background: #34c759; }
+    .ios-switch input:checked ~ .ios-switch-thumb { transform: translateX(20px); }
     .mode-btn.active { background: #ffe5d6; border-color: #f6a17c; color: #7a2b12; }
     .action-btn { background: #fff; border-color: #cfcfcf; padding: 2px; }
     .action-btn:hover { background: #f2f2f2; }
@@ -86,8 +92,13 @@
     </div>
     <div class="actions" style="margin-top: 10px;">
       <div class="send-mode-switch">
-        <button id="sendModeContinuousBtn" class="mode-btn send-mode-btn">连续发送</button>
-        <button id="sendModeManualBtn" class="mode-btn send-mode-btn active">手动发送</button>
+        <span class="send-mode-label">手动发送</span>
+        <label class="ios-switch">
+          <input type="checkbox" id="sendModeContinuous" />
+          <span class="ios-switch-track"></span>
+          <span class="ios-switch-thumb"></span>
+        </label>
+        <span class="send-mode-label">连续发送</span>
       </div>
       <button id="sendBtn" class="action-btn">📤 手动发送</button>
     </div>
@@ -294,13 +305,14 @@ function sendText(text){
 
 function setSendMode(mode){
   sendMode = mode;
-  document.getElementById("sendModeContinuousBtn").classList.toggle("active", mode === "continuous");
-  document.getElementById("sendModeManualBtn").classList.toggle("active", mode === "manual");
+  const cb = document.getElementById("sendModeContinuous");
+  if(cb) cb.checked = (mode === "continuous");
   document.getElementById("sendBtn").textContent = mode === "continuous" ? "📤 发送" : "📤 手动发送";
 }
 
-document.getElementById("sendModeContinuousBtn").onclick = () => setSendMode("continuous");
-document.getElementById("sendModeManualBtn").onclick = () => setSendMode("manual");
+document.getElementById("sendModeContinuous").addEventListener("change", (e) => {
+  setSendMode(e.target.checked ? "continuous" : "manual");
+});
 
 document.getElementById("sendBtn").onclick = () => {
   const box = document.getElementById("inputBox");
