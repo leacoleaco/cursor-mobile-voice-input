@@ -303,6 +303,18 @@ def copy_selection():
     _send_input([down_ctrl, down_c, up_c, up_ctrl])
 
 
+VK_V = 0x56
+
+
+def press_ctrl_v():
+    """Press Ctrl+V to paste from clipboard."""
+    down_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    down_v = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_V, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    up_v = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_V, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    up_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    _send_input([down_ctrl, down_v, up_v, up_ctrl])
+
+
 def select_all():
     """Press Ctrl+A to select all text in focused input."""
     down_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
@@ -408,14 +420,134 @@ def scroll_mouse(delta: int, x: Optional[int] = None, y: Optional[int] = None):
         pyautogui.scroll(delta)
 
 
-def read_target_input_content() -> str:
-    """Read content from focused input: select all, copy, return clipboard text.
+def read_target_input_content() -> tuple[str, str | None]:
+    """Read content from focused input: select all, copy, return (text, html).
+    html is CF_HTML format if available (for preserving @mentions/refs when pasting back).
     Caller should ensure target has focus (e.g. user clicked it)."""
     select_all()
     time.sleep(0.05)
     copy_selection()
     time.sleep(0.08)
-    return get_clipboard_text()
+    text = get_clipboard_text()
+    html = get_clipboard_html()
+    return (text or "", html)
+
+
+def get_clipboard_html() -> str | None:
+    """Read CF_HTML from clipboard if available. Returns None if not present."""
+    CF_HTML = _get_cf_html()
+    if not CF_HTML:
+        return None
+    for _ in range(3):
+        opened = user32.OpenClipboard(None)
+        if not opened:
+            time.sleep(0.03)
+            continue
+        try:
+            if user32.IsClipboardFormatAvailable(CF_HTML):
+                handle = user32.GetClipboardData(CF_HTML)
+                if handle:
+                    size = kernel32.GlobalSize(handle)
+                    ptr = kernel32.GlobalLock(handle)
+                    if ptr and size:
+                        try:
+                            raw = ctypes.string_at(ptr, size)
+                            return raw.decode("utf-8", errors="replace").rstrip("\x00")
+                        finally:
+                            kernel32.GlobalUnlock(handle)
+            return None
+        except Exception:
+            pass
+        finally:
+            try:
+                user32.CloseClipboard()
+            except Exception:
+                pass
+        time.sleep(0.03)
+    return None
+
+
+def _get_cf_html() -> int | None:
+    """Get clipboard format ID for HTML Format."""
+    try:
+        fmt = user32.RegisterClipboardFormatW("HTML Format")
+        return fmt if fmt else None
+    except Exception:
+        return None
+
+
+def set_clipboard_text(text: str, html: str | None = None) -> bool:
+    """Set clipboard with plain text. If html is provided, also set CF_HTML for rich paste.
+    Returns True on success."""
+    text = text or ""
+    for _ in range(5):
+        opened = user32.OpenClipboard(None)
+        if not opened:
+            time.sleep(0.05)
+            continue
+        try:
+            user32.EmptyClipboard()
+            if text:
+                data = text.encode("utf-16-le") + b"\x00\x00"
+                size = len(data)
+                GMEM_MOVEABLE = 0x0002
+                h = kernel32.GlobalAlloc(GMEM_MOVEABLE, size)
+                if h:
+                    ptr = kernel32.GlobalLock(h)
+                    if ptr:
+                        ctypes.memmove(ptr, data, size)
+                        kernel32.GlobalUnlock(h)
+                        CF_UNICODETEXT = 13
+                        user32.SetClipboardData(CF_UNICODETEXT, h)
+            if html and _get_cf_html():
+                data = html.encode("utf-8")
+                size = len(data)
+                GMEM_MOVEABLE = 0x0002
+                h = kernel32.GlobalAlloc(GMEM_MOVEABLE, size)
+                if h:
+                    ptr = kernel32.GlobalLock(h)
+                    if ptr:
+                        ctypes.memmove(ptr, data, size)
+                        kernel32.GlobalUnlock(h)
+                        user32.SetClipboardData(_get_cf_html(), h)
+            return True
+        except Exception:
+            pass
+        finally:
+            try:
+                user32.CloseClipboard()
+            except Exception:
+                pass
+        time.sleep(0.05)
+    try:
+        import tempfile
+        import os
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", suffix=".txt", delete=False
+        ) as f:
+            f.write(text)
+            path = f.name
+        try:
+            subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    f'Get-Content -LiteralPath "{path}" -Raw -Encoding UTF8 | Set-Clipboard',
+                ],
+                check=True,
+                timeout=5,
+                capture_output=True,
+            )
+            return True
+        finally:
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return False
 
 
 def get_clipboard_text() -> str:

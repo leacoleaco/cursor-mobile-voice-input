@@ -35,6 +35,10 @@ CLIENT_LOCK = threading.Lock()
 WS_CLIENTS: Set = set()
 WS_LOCK = threading.Lock()
 
+# Last sync content for preserving @mentions/HTML when pasting back unchanged
+_LAST_SYNC_TEXT: str = ""
+_LAST_SYNC_HTML: str | None = None
+
 
 def set_port(port: int):
     global PORT
@@ -228,8 +232,16 @@ def create_app(get_url_state):
                             pass
                 elif msg_type == "sync_from_target":
                     try:
-                        content = read_target_input_content()
-                        ws.send(json.dumps({"type": "sync_content", "string": content or ""}, ensure_ascii=False))
+                        global _LAST_SYNC_TEXT, _LAST_SYNC_HTML
+                        text, html = read_target_input_content()
+                        _LAST_SYNC_TEXT = text or ""
+                        _LAST_SYNC_HTML = html
+                        ws.send(
+                            json.dumps(
+                                {"type": "sync_content", "string": text or "", "html": html},
+                                ensure_ascii=False,
+                            )
+                        )
                     except Exception as e:
                         print(f"[sync_from_target] error: {e}")
                         try:
@@ -238,7 +250,13 @@ def create_app(get_url_state):
                             pass
                 else:
                     replace = bool(payload.get("replace", False))
-                    handle_text(str(content or ""), mode="text", replace=replace)
+                    handle_text(
+                        str(content or ""),
+                        mode="text",
+                        replace=replace,
+                        last_sync_text=_LAST_SYNC_TEXT if replace else None,
+                        last_sync_html=_LAST_SYNC_HTML if replace else None,
+                    )
 
         except Exception:
             pass
