@@ -31,6 +31,7 @@ VK_DOWN = 0x28
 VK_I = 0x49
 VK_A = 0x41
 VK_C = 0x43
+VK_SHIFT = 0x10
 
 
 class MOUSEINPUT(ctypes.Structure):
@@ -132,6 +133,18 @@ def _send_input(inputs):
         raise ctypes.WinError(err)
 
 
+def send_unicode_text_with_newlines(text: str):
+    """Send text, using Shift+Enter for newlines (avoids submit in Cursor chat)."""
+    if not text:
+        return
+    parts = text.split("\n")
+    for i, part in enumerate(parts):
+        if part:
+            send_unicode_text(part)
+        if i < len(parts) - 1:
+            press_shift_enter()
+
+
 def send_unicode_text(text: str):
     text = text or ""
     if not text:
@@ -177,6 +190,15 @@ def backspace(n: int):
 
 def press_enter():
     press_vk(VK_RETURN, times=1)
+
+
+def press_shift_enter():
+    """Shift+Enter - inserts newline without submitting (Cursor, web inputs)."""
+    down_shift = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_SHIFT, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    down_ret = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_RETURN, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    up_ret = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_RETURN, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    up_shift = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_SHIFT, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    _send_input([down_shift, down_ret, up_ret, up_shift])
 
 
 def press_arrow(direction: str):

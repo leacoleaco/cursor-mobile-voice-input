@@ -3,7 +3,7 @@ import time
 from typing import Optional
 
 from commands import CommandResult, processor
-from input_control import backspace, focus_target, press_enter, select_all, send_unicode_text
+from input_control import backspace, focus_target, press_enter, select_all, send_unicode_text, send_unicode_text_with_newlines
 from notifier import notify
 from settings import SERVER_DEDUP_WINDOW_SEC, TEST_INJECT_TEXT
 
@@ -49,7 +49,7 @@ def handle_text_replace(text: str):
     focus_target()
     select_all()
     if text:
-        send_unicode_text(text)
+        send_unicode_text_with_newlines(text)
         processor.record_output(text)
     else:
         backspace(1)
