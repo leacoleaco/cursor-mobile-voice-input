@@ -10,10 +10,12 @@
     textarea { width: 100%; height: 140px; font-size: 18px; padding: 12px; margin-top: 12px; border-radius: 10px; border: 1px solid #ddd;box-sizing: border-box;resize: vertical; display: block ;overflow: auto;  }
     button { font-size: 18px; padding: 12px 16px; margin-top: 10px; border-radius: 10px; border: 1px solid #d7d7d7; background: #f7f7f7; color: #222; box-shadow: 0 1px 0 rgba(0,0,0,0.04); }
     button:active { transform: translateY(1px); }
-    #log { margin-top: 14px; white-space: pre-wrap; border: 1px solid #ddd; padding: 10px; border-radius: 8px; min-height: 80px; max-height: 200px; overflow-y: auto; }
+    #log { margin-top: 14px; white-space: pre-wrap; border: 1px solid #ddd; padding: 10px; border-radius: 8px; min-height: 2.5em; max-height: 200px; overflow-y: auto; }
     #llmStream { margin-top: 8px; padding: 10px 12px; border-radius: 8px; background: #f0f7ff; border: 1px solid #b8d4f0; font-size: 15px; color: #1a4d7a; display: none; }
     #llmStream.active { display: block; }
     .status { margin-top: 10px; font-size: 14px; color: #555; }
+    .status:first-child { margin-top: 0; }
+    .actions-top { margin-bottom: 12px; }
     .hint { margin-top: 10px; font-size: 13px; color: #666; line-height: 1.4; }
     code { background: #f7f7f7; padding: 2px 6px; border-radius: 6px; }
     .mode-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -60,7 +62,11 @@
   </style>
 </head>
 <body>
-  <h2 style="text-align: center;">手机输入 → 电脑同步</h2>
+  <div class="status" id="status">状态：未连接</div>
+  <div id="log"></div>
+  <div class="actions" style="margin-top: 8px;">
+    <button id="clearBtn" class="action-btn">🧹 清空日志</button>
+  </div>
 
   <div class="hint">
     ✅ 使用步骤:点击输入框 → 调起键盘 → 🎙语音输入<br/>
@@ -73,6 +79,9 @@
   <div class="panel-text-cmd">
     <div style="width: 100%">
       <textarea id="inputBox" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
+    </div>
+    <div class="actions" style="margin-top: 10px;">
+      <button id="sendBtn" class="action-btn">📤 手动发送</button>
     </div>
     <div class="shortcut-keys">
       <div class="shortcut-left">
@@ -89,10 +98,6 @@
         <button class="shortcut-btn coffee" data-key="enter" title="回车">↵</button>
       </div>
     </div>
-    <div class="actions">
-      <button id="sendBtn" class="action-btn">📤 手动发送</button>
-      <button id="clearBtn" class="action-btn">🧹 清空日志</button>
-    </div>
   </div>
   <div class="panel-mouse">
     <div class="hint">第一次点击快速定位，弹出触控板滑动微调；或先点击选位置，再使用下方按钮</div>
@@ -108,7 +113,6 @@
     </div>
   </div>
 
-  <div class="status" id="status">状态：未连接</div>
   <div id="llmStream" class=""></div>
   <div id="clipboardPanel" class="clipboard-panel">
     <div class="clipboard-header">
@@ -118,7 +122,6 @@
     <div id="clipboardText" class="clipboard-text"></div>
     <div class="clipboard-hint">点击标题按钮即可复制，关闭后等待下一次推送自动再显示</div>
   </div>
-  <div id="log"></div>
 
   <div id="trackpadOverlay" class="trackpad-overlay">
     <div class="trackpad-modal">
