@@ -7,7 +7,9 @@
   <style>
     html, body { touch-action: manipulation; }
     body { font-family: sans-serif; padding: 16px; }
-    textarea { width: 100%; height: 140px; font-size: 18px; padding: 12px; margin-top: 12px; border-radius: 10px; border: 1px solid #ddd;box-sizing: border-box;resize: vertical; display: block ;overflow: auto; transition: border-color 0.2s, background-color 0.2s; }
+    .input-box-wrap { position: relative; width: 100%; margin-top: 12px; }
+    .input-box-wrap .send-btn-float { position: absolute; bottom: 10px; right: 10px; margin: 0; z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    textarea { width: 100%; height: 140px; font-size: 18px; padding: 12px; padding-right: 90px; padding-bottom: 52px; margin-top: 0; border-radius: 10px; border: 1px solid #ddd;box-sizing: border-box;resize: vertical; display: block ;overflow: auto; transition: border-color 0.2s, background-color 0.2s; }
     #inputBox.connected { border-color: #34c759; background: #f0fff4; }
     #inputBox.disconnected { border-color: #dc3545; background: #fff5f5; }
     button { font-size: 18px; padding: 12px 16px; margin-top: 10px; border-radius: 10px; border: 1px solid #d7d7d7; background: #f7f7f7; color: #222; box-shadow: 0 1px 0 rgba(0,0,0,0.04); }
@@ -38,19 +40,26 @@
     .action-btn.shortcut-coffee:hover { background: #dcc8a0; }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: flex-start; margin-top: 4px; }
     .action { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: nowrap; }
-    .action-buttons { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    .action-buttons button[data-key] { min-width: 48px; min-height: 32px; }
+    .action-buttons { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+    .action-buttons .action-btn { padding: 5px 6px; min-height: 38px; }
+    .action-buttons button[data-key] { min-width: 56px; min-height: 38px; }
     .shortcut-keys { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
-    .shortcut-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .shortcut-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+    .shortcut-row.shortcut-row-inline { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 0; }
     .shortcut-btn { font-size: 20px; padding: 14px 18px; min-width: 52px; min-height: 52px; border-radius: 12px; border: 1px solid #c0c0c0; background: #f8f8f8; color: #333; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
     .shortcut-btn:active { transform: translateY(1px); background: #e8e8e8; }
     .shortcut-btn.coffee { background: #e8d5b5; border-color: #d4a574; color: #5c4033; }
     .shortcut-btn.coffee:active { background: #dcc8a0; }
-    .shortcut-arrows { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; }
+    .shortcut-arrows { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; flex-shrink: 0; }
     .shortcut-arrows .arrow-up { grid-column: 2; grid-row: 1; }
     .shortcut-arrows .arrow-left { grid-column: 1; grid-row: 2; }
     .shortcut-arrows .arrow-down { grid-column: 2; grid-row: 2; }
     .shortcut-arrows .arrow-right { grid-column: 3; grid-row: 2; }
+    .shortcut-mouse-zone { flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; }
+    .shortcut-mouse-trackpad { width: 150px; height: 150px; flex-shrink: 0; border: 2px solid #4a90d9; border-radius: 10px; background: linear-gradient(145deg, #e8e8e8 0%, #d8d8d8 100%); touch-action: none; user-select: none; position: relative; overflow: hidden; }
+    .shortcut-mouse-trackpad::before { content: "鼠标区域 · 滑动·单击·长按右键"; color: #888; font-size: 10px; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none; }
+    .shortcut-mouse-trackpad.active-drag { background: linear-gradient(145deg, #d0e4f7 0%, #b8d4f0 100%); }
+    .shortcut-mouse-trackpad.active-scroll { background: linear-gradient(145deg, #e8f0d8 0%, #d8e8c8 100%); }
     .clipboard-panel { display: none; position: relative; margin-top: 14px; padding: 14px 16px 16px; border-radius: 14px; background: #f4f4f4; border: 1px solid #d8d8d8; box-shadow: inset 4px 4px 10px rgba(0,0,0,0.12), inset -4px -4px 10px rgba(255,255,255,0.8); }
     .clipboard-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
     .clipboard-title { font-weight: 600; color: #333; }
@@ -124,8 +133,9 @@
     <button id="modeKeyboardBtn" class="mode-btn">⌨ 键盘</button>
   </div>
   <div class="panel-text-cmd">
-    <div style="width: 100%">
+    <div class="input-box-wrap">
       <textarea id="inputBox" class="disconnected" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
+      <button id="sendBtn" class="action-btn send-btn-float">立即发送</button>
     </div>
     <div class="action" style="margin-top: 10px;">
       <div class="send-mode-switch">
@@ -138,21 +148,23 @@
         <span class="send-mode-label">手动发送</span>
       </div>
       <div class="action-buttons">
-        <button id="sendBtn" class="action-btn">📤 发送</button>
         <button id="newlineBtn" class="action-btn" title="Shift+Enter 换行">换行</button>
-        <button id="clearInputBtn" class="action-btn" title="清空输入框">🗑 清空</button>
+        <button id="clearInputBtn" class="action-btn" title="清空输入框" style="display:none;">🗑 清空</button>
         <button class="action-btn" data-key="backspace" title="退格">⌫</button>
         <button class="action-btn shortcut-coffee" data-key="@" title="@">@</button>
         <button class="action-btn shortcut-coffee" data-key="enter" title="回车">↵ 回车</button>
       </div>
     </div>
     <div class="shortcut-keys">
-      <div class="shortcut-row">
+      <div class="shortcut-row shortcut-row-inline">
         <div class="shortcut-arrows">
           <button class="shortcut-btn arrow-up" data-key="up" title="上">↑</button>
           <button class="shortcut-btn arrow-left" data-key="left" title="左">←</button>
           <button class="shortcut-btn arrow-down" data-key="down" title="下">↓</button>
           <button class="shortcut-btn arrow-right" data-key="right" title="右">→</button>
+        </div>
+        <div class="shortcut-mouse-zone">
+          <div id="shortcutMouseTrackpad" class="shortcut-mouse-trackpad" title="鼠标区域：滑动移动光标 · 单击左键 · 长按右键"></div>
         </div>
       </div>
       <div class="shortcut-row">
@@ -465,6 +477,8 @@ function setSendMode(mode){
   if(timer){ clearTimeout(timer); timer = null; }
   const cb = document.getElementById("sendModeManual");
   if(cb) cb.checked = (mode === "manual");
+  const clearInputBtn = document.getElementById("clearInputBtn");
+  if(clearInputBtn) clearInputBtn.style.display = (mode === "manual" ? "" : "none");
   log("✅ 发送模式：" + (mode === "auto" ? "自动发送" : "手动发送"));
 }
 
@@ -474,6 +488,8 @@ document.getElementById("sendModeManual").addEventListener("change", (e) => {
 
 document.getElementById("sendBtn").onclick = () => {
   const box = document.getElementById("inputBox");
+  clearTimeout(timer);
+  timer = null;
   sendText(box.value, false);
   box.value = "";
   lastSentText = "";
@@ -670,6 +686,7 @@ let trackpadLongPressTimer = null;
 let trackpadIsLongPress = false;
 let trackpadScrollMode = false;
 let trackpadScrollLastY = null;
+let trackpadActiveEl = null;
 
 function _unused_showTrackpad(pos){
   if(document.getElementById("trackpadOverlay").classList.contains("show")) return;
@@ -710,7 +727,8 @@ function scheduleTrackpadFlush(){
   }, TRACKPAD_THROTTLE_MS);
 }
 
-function onTrackpadPointerDown(clientX, clientY, isRightButton){
+function onTrackpadPointerDown(clientX, clientY, isRightButton, el){
+  trackpadActiveEl = el;
   trackpadDownX = clientX;
   trackpadTotalMove = 0;
   trackpadIsLongPress = false;
@@ -725,8 +743,7 @@ function onTrackpadPointerDown(clientX, clientY, isRightButton){
   }
   trackpadLongPressTimer = setTimeout(() => {
     trackpadIsLongPress = true;
-    const el = document.getElementById("mouseTrackpad");
-    if(el){ el.classList.remove("active-drag"); el.classList.add("active-scroll"); }
+    if(trackpadActiveEl){ trackpadActiveEl.classList.remove("active-drag"); trackpadActiveEl.classList.add("active-scroll"); }
   }, LONG_PRESS_MS);
 }
 
@@ -758,8 +775,7 @@ function onTrackpadPointerMove(clientX, clientY){
 }
 
 function onTrackpadPointerUp(){
-  const el = document.getElementById("mouseTrackpad");
-  if(el) el.classList.remove("active-drag", "active-scroll");
+  if(trackpadActiveEl) trackpadActiveEl.classList.remove("active-drag", "active-scroll");
   if(trackpadLongPressTimer){ clearTimeout(trackpadLongPressTimer); trackpadLongPressTimer = null; }
   if(trackpadScrollMode){
     trackpadScrollMode = false;
@@ -780,17 +796,17 @@ function onTrackpadPointerUp(){
   trackpadLastX = null;
   trackpadLastY = null;
   trackpadDownX = null;
+  trackpadActiveEl = null;
   if(trackpadThrottleTimer){ clearTimeout(trackpadThrottleTimer); trackpadThrottleTimer = null; }
 }
 
-function setupTrackpadArea(){
-  const area = document.getElementById("mouseTrackpad");
+function setupTrackpadOnElement(area){
   if(!area) return;
   area.onmousedown = (e) => {
     e.preventDefault();
     area.classList.add("active-drag");
     const isRight = e.button === 2;
-    onTrackpadPointerDown(e.clientX, e.clientY, isRight);
+    onTrackpadPointerDown(e.clientX, e.clientY, isRight, area);
   };
   area.onmousemove = (e) => { if(e.buttons) onTrackpadPointerMove(e.clientX, e.clientY); };
   area.onmouseup = (e) => { e.preventDefault(); onTrackpadPointerUp(); };
@@ -805,7 +821,7 @@ function setupTrackpadArea(){
       if(trackpadLongPressTimer){ clearTimeout(trackpadLongPressTimer); trackpadLongPressTimer = null; }
     }else if(e.touches.length === 1){
       area.classList.add("active-drag");
-      onTrackpadPointerDown(e.touches[0].clientX, e.touches[0].clientY, false);
+      onTrackpadPointerDown(e.touches[0].clientX, e.touches[0].clientY, false, area);
     }
   };
   area.ontouchmove = (e) => {
@@ -823,7 +839,8 @@ function setupTrackpadArea(){
     if(e.touches.length === 0) onTrackpadPointerUp();
   };
 }
-setupTrackpadArea();
+setupTrackpadOnElement(document.getElementById("mouseTrackpad"));
+setupTrackpadOnElement(document.getElementById("shortcutMouseTrackpad"));
 
 document.getElementById("mouseRightBtn").onclick = () => {
   sendMouseAction("right_click");
