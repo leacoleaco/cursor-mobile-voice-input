@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8"/>
   <title>局域网语音输入</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no"/>
   <style>
+    html, body { touch-action: manipulation; }
     body { font-family: sans-serif; padding: 16px; }
     textarea { width: 100%; height: 140px; font-size: 18px; padding: 12px; margin-top: 12px; border-radius: 10px; border: 1px solid #ddd;box-sizing: border-box;resize: vertical; display: block ;overflow: auto;  }
     button { font-size: 18px; padding: 12px 16px; margin-top: 10px; border-radius: 10px; border: 1px solid #d7d7d7; background: #f7f7f7; color: #222; box-shadow: 0 1px 0 rgba(0,0,0,0.04); }
     button:active { transform: translateY(1px); }
-    #log { margin-top: 14px; white-space: pre-wrap; border: 1px solid #ddd; padding: 10px; border-radius: 8px; min-height: 120px; }
+    #log { margin-top: 14px; white-space: pre-wrap; border: 1px solid #ddd; padding: 10px; border-radius: 8px; min-height: 80px; max-height: 200px; overflow-y: auto; }
     #llmStream { margin-top: 8px; padding: 10px 12px; border-radius: 8px; background: #f0f7ff; border: 1px solid #b8d4f0; font-size: 15px; color: #1a4d7a; display: none; }
     #llmStream.active { display: block; }
     .status { margin-top: 10px; font-size: 14px; color: #555; }
@@ -21,6 +22,18 @@
     .action-btn { background: #fff; border-color: #cfcfcf; padding: 2px; }
     .action-btn:hover { background: #f2f2f2; }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: flex-start; margin-top: 4px; }
+    .shortcut-keys { display: flex; gap: 20px; align-items: center; justify-content: space-between; margin-top: 14px; flex-wrap: wrap; }
+    .shortcut-btn { font-size: 20px; padding: 14px 18px; min-width: 52px; min-height: 52px; border-radius: 12px; border: 1px solid #c0c0c0; background: #f8f8f8; color: #333; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+    .shortcut-btn:active { transform: translateY(1px); background: #e8e8e8; }
+    .shortcut-btn.coffee { background: #e8d5b5; border-color: #d4a574; color: #5c4033; }
+    .shortcut-btn.coffee:active { background: #dcc8a0; }
+    .shortcut-left { display: flex; align-items: center; gap: 12px; }
+    .shortcut-right { display: flex; align-items: center; gap: 16px; }
+    .shortcut-arrows { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; }
+    .shortcut-arrows .arrow-up { grid-column: 2; grid-row: 1; }
+    .shortcut-arrows .arrow-left { grid-column: 1; grid-row: 2; }
+    .shortcut-arrows .arrow-down { grid-column: 2; grid-row: 2; }
+    .shortcut-arrows .arrow-right { grid-column: 3; grid-row: 2; }
     .clipboard-panel { display: none; position: relative; margin-top: 14px; padding: 14px 16px 16px; border-radius: 14px; background: #f4f4f4; border: 1px solid #d8d8d8; box-shadow: inset 4px 4px 10px rgba(0,0,0,0.12), inset -4px -4px 10px rgba(255,255,255,0.8); }
     .clipboard-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
     .clipboard-title { font-weight: 600; color: #333; }
@@ -60,6 +73,21 @@
   <div class="panel-text-cmd">
     <div style="width: 100%">
       <textarea id="inputBox" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
+    </div>
+    <div class="shortcut-keys">
+      <div class="shortcut-left">
+        <button class="shortcut-btn" data-key="backspace" title="退格">⌫</button>
+      </div>
+      <div class="shortcut-right">
+        <div class="shortcut-arrows">
+          <button class="shortcut-btn arrow-up" data-key="up" title="上">↑</button>
+          <button class="shortcut-btn arrow-left" data-key="left" title="左">←</button>
+          <button class="shortcut-btn arrow-down" data-key="down" title="下">↓</button>
+          <button class="shortcut-btn arrow-right" data-key="right" title="右">→</button>
+        </div>
+        <button class="shortcut-btn coffee" data-key="@">@</button>
+        <button class="shortcut-btn coffee" data-key="enter" title="回车">↵</button>
+      </div>
     </div>
     <div class="actions">
       <button id="sendBtn" class="action-btn">📤 手动发送</button>
@@ -113,6 +141,7 @@ let lastSentText = "";
 let lastSentMsg = "";
 let lastSentTime = 0;
 const DUP_WINDOW_MS = 1500;
+const LOG_MAX_LINES = 80;
 const clipboardPanel = document.getElementById("clipboardPanel");
 const clipboardText = document.getElementById("clipboardText");
 const clipboardClose = document.getElementById("clipboardClose");
@@ -120,7 +149,10 @@ const clipboardCopyBtn = document.getElementById("clipboardCopyBtn");
 
 function log(msg){
   const el = document.getElementById("log");
-  el.textContent += msg + "\n";
+  const lines = (el.textContent || "").split("\n").filter(Boolean);
+  lines.push(msg);
+  if (lines.length > LOG_MAX_LINES) lines.splice(0, lines.length - LOG_MAX_LINES);
+  el.textContent = lines.join("\n") + (lines.length ? "\n" : "");
   el.scrollTop = el.scrollHeight;
 }
 
@@ -277,6 +309,19 @@ clipboardCopyBtn.onclick = async () => {
 document.getElementById("modeTextBtn").onclick = () => setMode("text");
 document.getElementById("modeCmdBtn").onclick = () => setMode("cmd");
 document.getElementById("modeMouseBtn").onclick = () => setMode("mouse");
+
+// Shortcut key buttons
+document.querySelectorAll(".shortcut-btn").forEach(btn => {
+  btn.onclick = () => {
+    const key = btn.getAttribute("data-key");
+    if (!key || !ws || ws.readyState !== 1) {
+      if (!ws || ws.readyState !== 1) log("⚠️ 未连接 WebSocket，无法发送按键");
+      return;
+    }
+    ws.send(JSON.stringify({ type: "key", key }));
+    log("⌨️ 发送按键：" + (key === "@" ? "@" : key === "enter" ? "回车" : key === "backspace" ? "退格" : key));
+  };
+});
 
 // --- Mouse control ---
 let screenshotBounds = null;

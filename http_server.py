@@ -11,7 +11,18 @@ from notifier import notify
 from paths import resource_path
 from screenshot import capture_screenshot
 from text_handler import handle_text
-from input_control import move_mouse, move_mouse_rel, left_click, right_click, scroll_mouse
+from input_control import (
+    move_mouse,
+    move_mouse_rel,
+    left_click,
+    right_click,
+    scroll_mouse,
+    focus_target,
+    send_unicode_text,
+    backspace,
+    press_enter,
+    press_arrow,
+)
 
 PORT: Optional[int] = None
 CLIENT_COUNT = 0
@@ -88,6 +99,25 @@ def _handle_mouse(payload: dict):
             scroll_mouse(int(delta), int(x) if x is not None else None, int(y) if y is not None else None)
     except Exception as e:
         print(f"[mouse] error: {e}")
+
+
+def _handle_key(payload: dict):
+    """Handle key shortcut: @, enter, backspace, arrow keys."""
+    key = (payload.get("key") or "").strip().lower()
+    if not key:
+        return
+    try:
+        focus_target()
+        if key == "@":
+            send_unicode_text("@")
+        elif key == "enter":
+            press_enter()
+        elif key == "backspace":
+            backspace(1)
+        elif key in ("up", "down", "left", "right"):
+            press_arrow(key)
+    except Exception as e:
+        print(f"[key] error: {e}")
 
 
 def create_app(get_url_state):
@@ -169,6 +199,8 @@ def create_app(get_url_state):
                     handle_command_with_llm(text_cmd, send_progress, send_result)
                 elif msg_type == "mouse":
                     _handle_mouse(payload)
+                elif msg_type == "key":
+                    _handle_key(payload)
                 else:
                     handle_text(str(content or ""), mode="text")
 

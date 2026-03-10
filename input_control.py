@@ -23,6 +23,10 @@ KEYEVENTF_UNICODE = 0x0004
 WM_CHAR = 0x0102
 VK_BACK = 0x08
 VK_RETURN = 0x0D
+VK_LEFT = 0x25
+VK_UP = 0x26
+VK_RIGHT = 0x27
+VK_DOWN = 0x28
 
 
 class MOUSEINPUT(ctypes.Structure):
@@ -169,6 +173,14 @@ def backspace(n: int):
 
 def press_enter():
     press_vk(VK_RETURN, times=1)
+
+
+def press_arrow(direction: str):
+    """Press arrow key: 'up', 'down', 'left', 'right'."""
+    vk_map = {"left": VK_LEFT, "up": VK_UP, "right": VK_RIGHT, "down": VK_DOWN}
+    vk = vk_map.get((direction or "").lower())
+    if vk is not None:
+        press_vk(vk, times=1)
 
 
 _LAST_FG_HWND = None
