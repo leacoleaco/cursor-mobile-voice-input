@@ -61,14 +61,36 @@
     .clip-btn:active { transform: translateY(1px); }
     .panel-text-cmd { display: block; }
     .panel-mouse { display: none; }
+    .panel-keyboard { display: none; }
     body.mode-mouse .panel-text-cmd { display: none; }
     body.mode-mouse .panel-mouse { display: block; }
+    body.mode-keyboard .panel-text-cmd { display: none; }
+    body.mode-keyboard .panel-mouse { display: none; }
+    body.mode-keyboard .panel-keyboard { display: block; }
+    body.mode-keyboard .status { display: none; }
+    body.mode-keyboard #log { display: none; }
+    body.mode-keyboard .actions { display: none; }
+    body.mode-keyboard .hint { display: none; }
+    body.mode-keyboard #llmStream { display: none; }
+    body.mode-keyboard #clipboardPanel { display: none; }
     .mouse-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
     .mouse-actions button { margin-top: 0; }
     .mouse-trackpad-wrap { margin-top: 12px; min-height: 280px; border: 2px solid #4a90d9; border-radius: 12px; background: linear-gradient(145deg, #e8e8e8 0%, #d8d8d8 100%); touch-action: none; user-select: none; -webkit-user-select: none; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
     .mouse-trackpad-wrap::before { content: "滑动移动 · 单击左键 · 长按右键 · 双指滚动"; color: #888; font-size: 14px; pointer-events: none; }
     .mouse-trackpad-wrap.active-drag { background: linear-gradient(145deg, #d0e4f7 0%, #b8d4f0 100%); }
     .mouse-trackpad-wrap.active-scroll { background: linear-gradient(145deg, #e8f0d8 0%, #d8e8c8 100%); }
+    .panel-keyboard { padding: 8px 0; margin-left: -16px; margin-right: -16px; width: calc(100% + 32px); box-sizing: border-box; }
+    .vkeyboard-panel { width: 100%; padding: 10px 8px; border-radius: 0; background: #2d2d2d; border: none; border-top: 1px solid #444; border-bottom: 1px solid #444; box-sizing: border-box; }
+    .vkeyboard-row { display: flex; justify-content: center; gap: 4px; margin-bottom: 5px; }
+    .vkeyboard-row:last-child { margin-bottom: 0; }
+    .vkey { flex: 1; min-width: 0; height: 40px; padding: 0 4px; font-size: 14px; border-radius: 6px; border: 1px solid #555; background: #3d3d3d; color: #eee; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+    .vkey:active { background: #5a5a5a; transform: scale(0.96); }
+    .vkey.wide { flex: 1.5; }
+    .vkey.wider { flex: 1.8; }
+    .vkey.widest { flex: 3; }
+    .vkey.modifier { background: #4a6a8a; border-color: #5a7a9a; }
+    .vkey.modifier.active { background: #2d5a8a; border-color: #3d6a9a; box-shadow: inset 0 0 0 2px #5a9ada; }
+    .vkey.special { background: #555; }
   </style>
 </head>
 <body>
@@ -77,7 +99,6 @@
   <div class="actions" style="margin-top: 8px;">
     <button id="clearBtn" class="action-btn">🧹 清空日志</button>
   </div>
-
   <div class="hint">
     ✅ 使用步骤:点击输入框 → 调起键盘 → 🎙语音输入
   </div>
@@ -85,6 +106,7 @@
     <button id="modeTextBtn" class="mode-btn active">✍ 文字</button>
     <button id="modeCmdBtn" class="mode-btn">⚡ 命令</button>
     <button id="modeMouseBtn" class="mode-btn">🖱 鼠标</button>
+    <button id="modeKeyboardBtn" class="mode-btn">⌨ 键盘</button>
   </div>
   <div class="panel-text-cmd">
     <div style="width: 100%">
@@ -123,6 +145,95 @@
       <div class="shortcut-row">
         <button class="shortcut-btn" data-key="ctrl+i" title="跳转 cursor 输入框 (Ctrl+I)">跳转cursor 输入框</button>
         <button class="shortcut-btn" data-key="ctrl+n" title="新建 Agent (Ctrl+N)">新建 Agent</button>
+      </div>
+    </div>
+  </div>
+  <div class="panel-keyboard">
+    <div id="vkeyboardPanel" class="vkeyboard-panel">
+      <div class="vkeyboard-row">
+        <button class="vkey modifier" data-mod="ctrl" title="Ctrl">Ctrl</button>
+        <button class="vkey modifier" data-mod="alt" title="Alt">Alt</button>
+        <button class="vkey modifier" data-mod="shift" title="Shift">Shift</button>
+        <button class="vkey modifier" data-mod="win" title="Win">Win</button>
+      </div>
+      <div class="vkeyboard-row">
+        <button class="vkey" data-key="`" data-shift="~">`</button>
+        <button class="vkey" data-key="1" data-shift="!">1</button>
+        <button class="vkey" data-key="2" data-shift="@">2</button>
+        <button class="vkey" data-key="3" data-shift="#">3</button>
+        <button class="vkey" data-key="4" data-shift="$">4</button>
+        <button class="vkey" data-key="5" data-shift="%">5</button>
+        <button class="vkey" data-key="6" data-shift="^">6</button>
+        <button class="vkey" data-key="7" data-shift="&">7</button>
+        <button class="vkey" data-key="8" data-shift="*">8</button>
+        <button class="vkey" data-key="9" data-shift="(">9</button>
+        <button class="vkey" data-key="0" data-shift=")">0</button>
+        <button class="vkey" data-key="-" data-shift="_">-</button>
+        <button class="vkey" data-key="=" data-shift="+">=</button>
+        <button class="vkey wide special" data-key="backspace">⌫</button>
+      </div>
+      <div class="vkeyboard-row">
+        <button class="vkey wider special" data-key="tab">Tab</button>
+        <button class="vkey" data-key="q" data-shift="Q">q</button>
+        <button class="vkey" data-key="w" data-shift="W">w</button>
+        <button class="vkey" data-key="e" data-shift="E">e</button>
+        <button class="vkey" data-key="r" data-shift="R">r</button>
+        <button class="vkey" data-key="t" data-shift="T">t</button>
+        <button class="vkey" data-key="y" data-shift="Y">y</button>
+        <button class="vkey" data-key="u" data-shift="U">u</button>
+        <button class="vkey" data-key="i" data-shift="I">i</button>
+        <button class="vkey" data-key="o" data-shift="O">o</button>
+        <button class="vkey" data-key="p" data-shift="P">p</button>
+        <button class="vkey" data-key="[" data-shift="{">[</button>
+        <button class="vkey" data-key="]" data-shift="}">]</button>
+        <button class="vkey" data-key="\" data-shift="|">\</button>
+      </div>
+      <div class="vkeyboard-row">
+        <button class="vkey wider special modifier" data-mod="caps">Caps</button>
+        <button class="vkey" data-key="a" data-shift="A">a</button>
+        <button class="vkey" data-key="s" data-shift="S">s</button>
+        <button class="vkey" data-key="d" data-shift="D">d</button>
+        <button class="vkey" data-key="f" data-shift="F">f</button>
+        <button class="vkey" data-key="g" data-shift="G">g</button>
+        <button class="vkey" data-key="h" data-shift="H">h</button>
+        <button class="vkey" data-key="j" data-shift="J">j</button>
+        <button class="vkey" data-key="k" data-shift="K">k</button>
+        <button class="vkey" data-key="l" data-shift="L">l</button>
+        <button class="vkey" data-key=";" data-shift=":">;</button>
+        <button class="vkey" data-key="'" data-shift="&quot;">'</button>
+        <button class="vkey wide special" data-key="enter">↵</button>
+      </div>
+      <div class="vkeyboard-row">
+        <button class="vkey widest special modifier" data-mod="shift">Shift</button>
+        <button class="vkey" data-key="z" data-shift="Z">z</button>
+        <button class="vkey" data-key="x" data-shift="X">x</button>
+        <button class="vkey" data-key="c" data-shift="C">c</button>
+        <button class="vkey" data-key="v" data-shift="V">v</button>
+        <button class="vkey" data-key="b" data-shift="B">b</button>
+        <button class="vkey" data-key="n" data-shift="N">n</button>
+        <button class="vkey" data-key="m" data-shift="M">m</button>
+        <button class="vkey" data-key="," data-shift="<">,</button>
+        <button class="vkey" data-key="." data-shift=">">.</button>
+        <button class="vkey" data-key="/" data-shift="?">/</button>
+        <button class="vkey widest special modifier" data-mod="shift">Shift</button>
+      </div>
+      <div class="vkeyboard-row">
+        <button class="vkey modifier" data-mod="ctrl">Ctrl</button>
+        <button class="vkey modifier" data-mod="win">Win</button>
+        <button class="vkey modifier" data-mod="alt">Alt</button>
+        <button class="vkey widest" data-key=" ">Space</button>
+        <button class="vkey special" data-key="left">←</button>
+        <button class="vkey special" data-key="up">↑</button>
+        <button class="vkey special" data-key="down">↓</button>
+        <button class="vkey special" data-key="right">→</button>
+      </div>
+      <div class="vkeyboard-row">
+        <button class="vkey special" data-key="escape">Esc</button>
+        <button class="vkey special" data-key="ctrl+c">Ctrl+C</button>
+        <button class="vkey special" data-key="ctrl+v">Ctrl+V</button>
+        <button class="vkey special" data-key="ctrl+a">Ctrl+A</button>
+        <button class="vkey special" data-key="ctrl+z">Ctrl+Z</button>
+        <button class="vkey special" data-key="ctrl+s">Ctrl+S</button>
       </div>
     </div>
   </div>
@@ -190,21 +301,23 @@ function setMode(mode){
   document.getElementById("modeTextBtn").classList.toggle("active", mode === "text");
   document.getElementById("modeCmdBtn").classList.toggle("active", mode === "cmd");
   document.getElementById("modeMouseBtn").classList.toggle("active", mode === "mouse");
+  document.getElementById("modeKeyboardBtn").classList.toggle("active", mode === "keyboard");
   document.body.classList.toggle("mode-mouse", mode === "mouse");
+  document.body.classList.toggle("mode-keyboard", mode === "keyboard");
   const inputBox = document.getElementById("inputBox");
   if(mode === "cmd"){
     inputBox.placeholder = "可以输入 比如 清空输入框、修改某个字到某个字 这种说法";
   }else if(mode === "text"){
     inputBox.placeholder = "点击这里调起输入法（推荐用手机键盘语音输入）";
   }
-  log("✅ 切换模式：" + (mode === "text" ? "文字" : mode === "cmd" ? "命令" : "鼠标"));
+  log("✅ 切换模式：" + (mode === "text" ? "文字" : mode === "cmd" ? "命令" : mode === "mouse" ? "鼠标" : "键盘"));
   if(mode === "text" || mode === "cmd") {
     const doFocus = () => {
       inputBox.focus();
       const len = (inputBox.value || "").length;
       inputBox.setSelectionRange(len, len);
     };
-    if(prevMode === "mouse"){
+    if(prevMode === "mouse" || prevMode === "keyboard"){
       setTimeout(doFocus, 350);
     }else{
       doFocus();
@@ -402,6 +515,74 @@ function bindModeBtn(id, mode){
 bindModeBtn("modeTextBtn", "text");
 bindModeBtn("modeCmdBtn", "cmd");
 bindModeBtn("modeMouseBtn", "mouse");
+bindModeBtn("modeKeyboardBtn", "keyboard");
+
+// --- Virtual keyboard ---
+let vkModifiers = { ctrl: false, alt: false, shift: false, win: false, caps: false };
+const vkeyboardPanel = document.getElementById("vkeyboardPanel");
+
+function updateVKeyLabels() {
+  const shift = vkModifiers.shift;
+  const caps = vkModifiers.caps;
+  document.querySelectorAll("#vkeyboardPanel .vkey[data-key]").forEach(btn => {
+    const key = btn.getAttribute("data-key");
+    const shiftChar = btn.getAttribute("data-shift");
+    if (!shiftChar) return;
+    const baseChar = key.length === 1 ? key : btn.textContent;
+    let show;
+    if (/[a-z]/.test(key)) {
+      const wantUpper = (shift && !caps) || (!shift && caps);
+      show = wantUpper ? shiftChar : baseChar;
+    } else {
+      show = shift ? shiftChar : baseChar;
+    }
+    btn.textContent = show;
+  });
+}
+
+function buildKeyString(key) {
+  const parts = [];
+  if (vkModifiers.ctrl) parts.push("ctrl");
+  if (vkModifiers.alt) parts.push("alt");
+  if (vkModifiers.shift) parts.push("shift");
+  if (vkModifiers.win) parts.push("win");
+  if (key === " ") {
+    parts.push("space");
+  } else if (key.length === 1 && /[a-z]/.test(key)) {
+    const wantUpper = (vkModifiers.caps && !vkModifiers.shift) || (!vkModifiers.caps && vkModifiers.shift);
+    parts.push(wantUpper ? key.toUpperCase() : key);
+  } else {
+    parts.push(key);
+  }
+  return parts.join("+");
+}
+
+function sendVKey(keyStr) {
+  if (!ws || ws.readyState !== 1) {
+    log("⚠️ 未连接 WebSocket，无法发送按键");
+    return;
+  }
+  ws.send(JSON.stringify({ type: "key", key: keyStr }));
+  const label = keyStr.length > 12 ? keyStr.slice(0, 10) + "…" : keyStr;
+  log("⌨️ 发送：" + label);
+}
+
+document.querySelectorAll("#vkeyboardPanel .vkey").forEach(btn => {
+  btn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    const mod = btn.getAttribute("data-mod");
+    const key = btn.getAttribute("data-key");
+    if (mod) {
+      vkModifiers[mod] = !vkModifiers[mod];
+      document.querySelectorAll("#vkeyboardPanel .vkey[data-mod=\"" + mod + "\"]").forEach(b => b.classList.toggle("active", vkModifiers[mod]));
+      updateVKeyLabels();
+      log("⌨ " + mod + " " + (vkModifiers[mod] ? "已按下" : "已释放"));
+    } else if (key !== null) {
+      const keyStr = buildKeyString(key);
+      sendVKey(keyStr);
+    }
+  });
+});
 
 // Shortcut key buttons
 document.querySelectorAll(".shortcut-btn, button[data-key]").forEach(btn => {
@@ -620,6 +801,12 @@ document.getElementById("mouseScrollDownBtn").onclick = () => {
 };
 
 const box = document.getElementById("inputBox");
+box.addEventListener("keydown", (e) => {
+  if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    setMode("keyboard");
+  }
+});
 box.addEventListener("compositionstart", () => isComposing = true);
 box.addEventListener("compositionend", () => {
   isComposing = false;

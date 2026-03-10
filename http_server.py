@@ -27,6 +27,7 @@ from input_control import (
     focus_cursor_and_press_ctrl_i,
     focus_cursor_and_press_ctrl_n,
     read_target_input_content,
+    press_key_combo,
 )
 
 PORT: Optional[int] = None
@@ -111,33 +112,22 @@ def _handle_mouse(payload: dict):
 
 
 def _handle_key(payload: dict) -> Optional[dict]:
-    """Handle key shortcut: @, enter, backspace, arrow keys, ctrl+i, ctrl+n."""
+    """Handle key shortcut: single chars, combos (ctrl+a, ctrl+shift+z), ctrl+i, ctrl+n."""
     key = (payload.get("key") or "").strip().lower()
     if not key:
         return None
     try:
-        if key not in ("ctrl+i", "ctrl+n"):
-            focus_target()
-        if key == "@":
-            send_unicode_text("@")
-        elif key == "enter":
-            press_enter()
-        elif key == "shift+enter":
-            press_shift_enter()
-        elif key == "backspace":
-            backspace(1)
-        elif key in ("up", "down", "left", "right"):
-            press_arrow(key)
-        elif key == "ctrl+i":
+        if key == "ctrl+i":
             ok = focus_cursor_and_press_ctrl_i()
             if not ok:
                 print("[key] Cursor IDE 窗口未找到")
             return {"ok": ok, "message": "已定位 Cursor 输入框" if ok else "未找到 Cursor IDE 窗口"}
-        elif key == "ctrl+n":
+        if key == "ctrl+n":
             ok = focus_cursor_and_press_ctrl_n()
             if not ok:
                 print("[key] Cursor IDE 窗口未找到")
             return {"ok": ok, "message": "已新建 Agent" if ok else "未找到 Cursor IDE 窗口"}
+        press_key_combo(key)
     except Exception as e:
         print(f"[key] error: {e}")
     return None

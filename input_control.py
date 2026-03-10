@@ -304,6 +304,112 @@ def copy_selection():
 
 
 VK_V = 0x56
+VK_TAB = 0x09
+VK_ESCAPE = 0x1B
+VK_SPACE = 0x20
+VK_MENU = 0x12  # Alt
+VK_LWIN = 0x5B
+VK_DELETE = 0x2E
+VK_INSERT = 0x2D
+VK_HOME = 0x24
+VK_END = 0x23
+VK_PRIOR = 0x21  # Page Up
+VK_NEXT = 0x22   # Page Down
+VK_OEM_1 = 0xBA   # ;:
+VK_OEM_PLUS = 0xBB   # =+
+VK_OEM_COMMA = 0xBC  # ,<
+VK_OEM_MINUS = 0xBD  # -_
+VK_OEM_PERIOD = 0xBE # .>
+VK_OEM_2 = 0xBF     # /?
+VK_OEM_3 = 0xC0     # `~
+VK_OEM_4 = 0xDB     # [{
+VK_OEM_5 = 0xDC     # \|
+VK_OEM_6 = 0xDD     # ]}
+VK_OEM_7 = 0xDE     # '"
+VK_F1, VK_F2, VK_F3, VK_F4, VK_F5 = 0x70, 0x71, 0x72, 0x73, 0x74
+VK_F6, VK_F7, VK_F8, VK_F9, VK_F10 = 0x75, 0x76, 0x77, 0x78, 0x79
+VK_F11, VK_F12 = 0x7A, 0x7B
+VK_CAPITAL = 0x14  # Caps Lock
+
+# Map key names (lowercase) to VK codes for press_key_combo
+_VK_MAP = {
+    "backspace": VK_BACK, "tab": VK_TAB, "enter": VK_RETURN, "return": VK_RETURN,
+    "capslock": VK_CAPITAL, "caps": VK_CAPITAL,
+    "escape": VK_ESCAPE, "esc": VK_ESCAPE, "space": VK_SPACE,
+    "delete": VK_DELETE, "del": VK_DELETE, "insert": VK_INSERT, "ins": VK_INSERT,
+    "home": VK_HOME, "end": VK_END, "pageup": VK_PRIOR, "pagedown": VK_NEXT,
+    "up": VK_UP, "down": VK_DOWN, "left": VK_LEFT, "right": VK_RIGHT,
+    "f1": VK_F1, "f2": VK_F2, "f3": VK_F3, "f4": VK_F4, "f5": VK_F5,
+    "f6": VK_F6, "f7": VK_F7, "f8": VK_F8, "f9": VK_F9, "f10": VK_F10,
+    "f11": VK_F11, "f12": VK_F12,
+    "semicolon": VK_OEM_1, "equals": VK_OEM_PLUS, "comma": VK_OEM_COMMA,
+    "minus": VK_OEM_MINUS, "period": VK_OEM_PERIOD, "slash": VK_OEM_2,
+    "backquote": VK_OEM_3, "backtick": VK_OEM_3, "openbracket": VK_OEM_4,
+    "backslash": VK_OEM_5, "closebracket": VK_OEM_6, "quote": VK_OEM_7,
+}
+# Character-to-VK for symbols (so shift+; etc. works)
+for ch, vk in (
+    (";", VK_OEM_1), ("=", VK_OEM_PLUS), (",", VK_OEM_COMMA), ("-", VK_OEM_MINUS),
+    (".", VK_OEM_PERIOD), ("/", VK_OEM_2), ("`", VK_OEM_3), ("[", VK_OEM_4),
+    ("\\", VK_OEM_5), ("]", VK_OEM_6), ("'", VK_OEM_7),
+):
+    _VK_MAP[ch] = vk
+for c in "abcdefghijklmnopqrstuvwxyz":
+    _VK_MAP[c] = 0x41 + ord(c) - ord("a")
+for c in "0123456789":
+    _VK_MAP[c] = 0x30 + ord(c) - ord("0")
+
+
+def press_key_combo(key_str: str) -> bool:
+    """
+    Parse and send a key combination. Examples:
+      "a" -> send_unicode_text("a")
+      "ctrl+a", "ctrl+c", "ctrl+v" -> modifier + key
+      "tab", "enter", "escape" -> special key
+      "ctrl+shift+z" -> multiple modifiers
+    Returns True on success.
+    """
+    key_str = (key_str or "").strip().lower()
+    if not key_str:
+        return False
+    parts = key_str.replace(" ", "").split("+")
+    modifiers = []
+    key_part = None
+    for p in parts:
+        if p in ("ctrl", "control"):
+            modifiers.append(("ctrl", VK_CONTROL))
+        elif p in ("alt"):
+            modifiers.append(("alt", VK_MENU))
+        elif p in ("shift"):
+            modifiers.append(("shift", VK_SHIFT))
+        elif p in ("meta", "win", "super"):
+            modifiers.append(("win", VK_LWIN))
+        else:
+            key_part = p
+    if not key_part:
+        return False
+    # Single character, no modifiers -> use send_unicode_text for better IME support
+    if len(key_part) == 1 and not modifiers:
+        ch = key_part
+        if ch in "abcdefghijklmnopqrstuvwxyz0123456789" or ch in " !@#$%^&*()_+-=[]{}|;':\",./<>?`~":
+            send_unicode_text(ch)
+            return True
+    vk = _VK_MAP.get(key_part)
+    if vk is None and len(key_part) == 1:
+        send_unicode_text(key_part)
+        return True
+    if vk is None:
+        return False
+    focus_target()
+    inputs = []
+    for _name, mod_vk in modifiers:
+        inputs.append(INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=mod_vk, wScan=0, dwFlags=0, time=0, dwExtraInfo=0)))
+    inputs.append(INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=vk, wScan=0, dwFlags=0, time=0, dwExtraInfo=0)))
+    inputs.append(INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=vk, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0)))
+    for _name, mod_vk in reversed(modifiers):
+        inputs.append(INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=mod_vk, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0)))
+    _send_input(inputs)
+    return True
 
 
 def press_ctrl_v():
