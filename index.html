@@ -30,6 +30,14 @@
     .clip-close:active { transform: translateY(1px); }
     .clip-btn { position: relative; top: -10px; border: 1px solid #c0c0c0; background: linear-gradient(145deg, #fefefe, #dcdcdc); box-shadow: 0 2px 4px rgba(0,0,0,0.12); border-radius: 12px; padding: 6px 10px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; color: #444; }
     .clip-btn:active { transform: translateY(1px); }
+    .panel-text-cmd { display: block; }
+    .panel-mouse { display: none; }
+    body.mode-mouse .panel-text-cmd { display: none; }
+    body.mode-mouse .panel-mouse { display: block; }
+    .mouse-screenshot-wrap { margin-top: 12px; overflow: auto; max-height: 50vh; border: 1px solid #ddd; border-radius: 10px; background: #f0f0f0; }
+    .mouse-screenshot-wrap img { display: block; width: 100%; height: auto; cursor: crosshair; }
+    .mouse-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    .mouse-actions button { margin-top: 0; }
   </style>
 </head>
 <body>
@@ -41,13 +49,31 @@
   <div class="mode-row">
     <button id="modeTextBtn" class="mode-btn active">✍ 文字</button>
     <button id="modeCmdBtn" class="mode-btn">⚡ 命令</button>
+    <button id="modeMouseBtn" class="mode-btn">🖱 鼠标</button>
   </div>
-  <div style="width: 100%">
-    <textarea id="inputBox" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
+  <div class="panel-text-cmd">
+    <div style="width: 100%">
+      <textarea id="inputBox" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
+    </div>
+    <div class="actions">
+      <button id="sendBtn" class="action-btn">📤 手动发送</button>
+      <button id="clearBtn" class="action-btn">🧹 清空日志</button>
+    </div>
   </div>
-  <div class="actions">
-    <button id="sendBtn" class="action-btn">📤 手动发送</button>
-    <button id="clearBtn" class="action-btn">🧹 清空日志</button>
+  <div class="panel-mouse">
+    <div class="hint">点击屏幕截图选择位置并左键点击；或先点击截图选位置，再使用下方按钮</div>
+    <div class="actions" style="margin-top: 8px;">
+      <button id="mouseRefreshBtn" class="action-btn">🔄 刷新截图</button>
+    </div>
+    <div id="mouseScreenshotWrap" class="mouse-screenshot-wrap">
+      <div id="mouseScreenshotPlaceholder" style="padding: 40px; text-align: center; color: #888;">点击「刷新截图」加载屏幕</div>
+      <img id="mouseScreenshotImg" alt="屏幕截图" style="display: none;" />
+    </div>
+    <div class="mouse-actions">
+      <button id="mouseRightBtn" class="action-btn">🖱 右键</button>
+      <button id="mouseScrollUpBtn" class="action-btn">⬆ 滚轮上</button>
+      <button id="mouseScrollDownBtn" class="action-btn">⬇ 滚轮下</button>
+    </div>
   </div>
 
   <div class="status" id="status">状态：未连接</div>
@@ -91,7 +117,10 @@ function setMode(mode){
   currentMode = mode;
   document.getElementById("modeTextBtn").classList.toggle("active", mode === "text");
   document.getElementById("modeCmdBtn").classList.toggle("active", mode === "cmd");
-  log("✅ 切换模式：" + (mode === "text" ? "文字" : "命令"));
+  document.getElementById("modeMouseBtn").classList.toggle("active", mode === "mouse");
+  document.body.classList.toggle("mode-mouse", mode === "mouse");
+  log("✅ 切换模式：" + (mode === "text" ? "文字" : mode === "cmd" ? "命令" : "鼠标"));
+  if(mode === "mouse") loadScreenshot();
 }
 
 async function connectWS(){
@@ -226,6 +255,94 @@ clipboardCopyBtn.onclick = async () => {
 
 document.getElementById("modeTextBtn").onclick = () => setMode("text");
 document.getElementById("modeCmdBtn").onclick = () => setMode("cmd");
+document.getElementById("modeMouseBtn").onclick = () => setMode("mouse");
+
+// --- Mouse control ---
+let screenshotBounds = null;
+let lastMousePos = null;
+
+function sendMouseAction(action, x, y, delta){
+  if(!ws || ws.readyState !== 1){
+    log("⚠️ 未连接 WebSocket，无法发送鼠标指令");
+    return;
+  }
+  const payload = { type: "mouse", action };
+  if(x != null && y != null){ payload.x = Math.round(x); payload.y = Math.round(y); }
+  if(delta != null) payload.delta = delta;
+  ws.send(JSON.stringify(payload));
+}
+
+async function loadScreenshot(){
+  const placeholder = document.getElementById("mouseScreenshotPlaceholder");
+  const img = document.getElementById("mouseScreenshotImg");
+  placeholder.textContent = "加载中...";
+  img.style.display = "none";
+  try{
+    const r = await fetch("/api/screenshot");
+    const data = await r.json();
+    if(!data.ok || !data.image){
+      placeholder.textContent = "截图失败";
+      return;
+    }
+    img.src = "data:image/png;base64," + data.image;
+    img.style.display = "block";
+    placeholder.style.display = "none";
+    screenshotBounds = data.bounds || { left: 0, top: 0, width: 0, height: 0 };
+    log("🖱 屏幕截图已加载");
+  }catch(e){
+    placeholder.textContent = "加载失败：" + e.message;
+    log("⚠️ 截图加载失败：" + e.message);
+  }
+}
+
+function imgClickToScreen(clientX, clientY, imgEl){
+  if(!screenshotBounds) return null;
+  const rect = imgEl.getBoundingClientRect();
+  const rx = (clientX - rect.left) / rect.width;
+  const ry = (clientY - rect.top) / rect.height;
+  const x = screenshotBounds.left + rx * screenshotBounds.width;
+  const y = screenshotBounds.top + ry * screenshotBounds.height;
+  return { x, y };
+}
+
+document.getElementById("mouseRefreshBtn").onclick = () => loadScreenshot();
+
+document.getElementById("mouseScreenshotImg").addEventListener("click", (e) => {
+  const img = document.getElementById("mouseScreenshotImg");
+  const pos = imgClickToScreen(e.clientX, e.clientY, img);
+  if(pos){
+    lastMousePos = pos;
+    sendMouseAction("left_click", pos.x, pos.y);
+    log("🖱 左键点击 (" + Math.round(pos.x) + "," + Math.round(pos.y) + ")");
+  }
+});
+
+document.getElementById("mouseRightBtn").onclick = () => {
+  if(lastMousePos){
+    sendMouseAction("right_click", lastMousePos.x, lastMousePos.y);
+    log("🖱 右键点击 (" + Math.round(lastMousePos.x) + "," + Math.round(lastMousePos.y) + ")");
+  }else{
+    log("⚠️ 请先点击截图选择位置");
+  }
+};
+
+document.getElementById("mouseScrollUpBtn").onclick = () => {
+  if(lastMousePos){
+    sendMouseAction("scroll", lastMousePos.x, lastMousePos.y, 3);
+    log("🖱 滚轮向上");
+  }else{
+    log("⚠️ 请先点击截图选择位置");
+  }
+};
+
+document.getElementById("mouseScrollDownBtn").onclick = () => {
+  if(lastMousePos){
+    sendMouseAction("scroll", lastMousePos.x, lastMousePos.y, -3);
+    log("🖱 滚轮向下");
+  }else{
+    log("⚠️ 请先点击截图选择位置");
+  }
+};
 
 const box = document.getElementById("inputBox");
 box.addEventListener("compositionstart", () => isComposing = true);

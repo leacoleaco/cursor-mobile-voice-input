@@ -9,7 +9,9 @@ from flask_sock import Sock
 from commands import handle_command_with_llm
 from notifier import notify
 from paths import resource_path
+from screenshot import capture_screenshot
 from text_handler import handle_text
+from input_control import move_mouse, left_click, right_click, scroll_mouse
 
 PORT: Optional[int] = None
 CLIENT_COUNT = 0
@@ -56,6 +58,33 @@ def schedule_broadcast(payload: dict) -> bool:
         return False
 
 
+def _handle_mouse(payload: dict):
+    """Handle mouse actions: move, left_click, right_click, scroll."""
+    action = (payload.get("action") or "").strip()
+    x = payload.get("x")
+    y = payload.get("y")
+    delta = payload.get("delta", 0)
+
+    try:
+        if action == "move":
+            if x is not None and y is not None:
+                move_mouse(int(x), int(y))
+        elif action == "left_click":
+            if x is not None and y is not None:
+                move_mouse(int(x), int(y))
+            left_click(int(x) if x is not None else None, int(y) if y is not None else None)
+        elif action == "right_click":
+            if x is not None and y is not None:
+                move_mouse(int(x), int(y))
+            right_click(int(x) if x is not None else None, int(y) if y is not None else None)
+        elif action == "scroll":
+            if x is not None and y is not None:
+                move_mouse(int(x), int(y))
+            scroll_mouse(int(delta), int(x) if x is not None else None, int(y) if y is not None else None)
+    except Exception as e:
+        print(f"[mouse] error: {e}")
+
+
 def create_app(get_url_state):
     """get_url_state returns dict: {http_port, ws_port, url, qr_url} - now http_port==ws_port."""
     app = Flask(__name__)
@@ -75,6 +104,19 @@ def create_app(get_url_state):
                 "url": state.get("url"),
             }
         )
+
+    @app.route("/api/screenshot")
+    def api_screenshot():
+        """Return screenshot of all screens as base64 PNG + virtual screen bounds."""
+        result = capture_screenshot()
+        if result is None:
+            return jsonify({"ok": False, "error": "screenshot_failed"}), 500
+        b64, (left, top, width, height) = result
+        return jsonify({
+            "ok": True,
+            "image": b64,
+            "bounds": {"left": left, "top": top, "width": width, "height": height},
+        })
 
     @sock.route("/ws")
     def websocket(ws):
@@ -124,6 +166,8 @@ def create_app(get_url_state):
                         except Exception:
                             pass
                     handle_command_with_llm(text_cmd, send_progress, send_result)
+                elif msg_type == "mouse":
+                    _handle_mouse(payload)
                 else:
                     handle_text(str(content or ""), mode="text")
 

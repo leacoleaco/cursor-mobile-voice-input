@@ -201,6 +201,35 @@ def focus_target():
             _LAST_FG_HWND = current_hwnd
 
 
+def move_mouse(x: int, y: int):
+    """Move mouse to absolute screen coordinates (virtual screen)."""
+    pyautogui.moveTo(x, y)
+
+
+def left_click(x: Optional[int] = None, y: Optional[int] = None):
+    """Left click at (x, y) or current position. Coordinates are virtual screen."""
+    if x is not None and y is not None:
+        pyautogui.click(x, y)
+    else:
+        pyautogui.click()
+
+
+def right_click(x: Optional[int] = None, y: Optional[int] = None):
+    """Right click at (x, y) or current position. Coordinates are virtual screen."""
+    if x is not None and y is not None:
+        pyautogui.rightClick(x, y)
+    else:
+        pyautogui.rightClick()
+
+
+def scroll_mouse(delta: int, x: Optional[int] = None, y: Optional[int] = None):
+    """Scroll: positive = up, negative = down. At (x,y) or current position."""
+    if x is not None and y is not None:
+        pyautogui.scroll(delta, x=x, y=y)
+    else:
+        pyautogui.scroll(delta)
+
+
 def get_clipboard_text() -> str:
     """Best-effort clipboard read with retries and a PowerShell fallback."""
     CF_UNICODETEXT = 13
