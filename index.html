@@ -9,7 +9,15 @@
     body { font-family: sans-serif; padding: 16px; }
     .input-box-wrap { position: relative; width: 100%; margin-top: 12px; }
     .input-box-wrap .send-btn-float { position: absolute; bottom: 10px; right: 10px; margin: 0; z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-    textarea { width: 100%; height: 140px; font-size: 18px; padding: 12px; padding-right: 90px; padding-bottom: 52px; margin-top: 0; border-radius: 10px; border: 1px solid #ddd;box-sizing: border-box;resize: vertical; display: block ;overflow: auto; transition: border-color 0.2s, background-color 0.2s; }
+    .input-box-wrap .send-btn-float-left { left: 10px; right: auto; }
+    .input-box-wrap .send-btn-float-center { left: 50%; right: auto; transform: translateX(-50%); }
+    .input-box-wrap .send-btn-float-top-right { top: 10px; bottom: auto; }
+    .input-box-wrap .send-btn-float-top-left { top: 10px; bottom: auto; left: 10px; right: auto; }
+    .input-box-wrap .send-btn-float-top-center { top: 10px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); }
+    .input-box-wrap .send-btn-float-left-of-center { bottom: 10px; top: auto; left: auto; right: 50%; margin-right: 8px; transform: translateX(-100%); }
+    .input-box-wrap .send-buttons-row { position: absolute; bottom: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: center; gap: 6px; z-index: 2; }
+    .input-box-wrap .send-buttons-row .action-btn { position: static; flex: 1; min-width: 0; margin: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    textarea { width: 100%; height: 140px; font-size: 18px; padding: 12px; padding-left: 90px; padding-right: 90px; padding-bottom: 52px; margin-top: 0; border-radius: 10px; border: 1px solid #ddd;box-sizing: border-box;resize: vertical; display: block ;overflow: auto; transition: border-color 0.2s, background-color 0.2s; }
     #inputBox.connected { border-color: #34c759; background: #f0fff4; }
     #inputBox.disconnected { border-color: #dc3545; background: #fff5f5; }
     button { font-size: 18px; padding: 12px 16px; margin-top: 10px; border-radius: 10px; border: 1px solid #d7d7d7; background: #f7f7f7; color: #222; box-shadow: 0 1px 0 rgba(0,0,0,0.04); }
@@ -18,8 +26,9 @@
     #log.expanded { height: auto; max-height: 200px; padding: 10px; overflow-y: auto; user-select: text; }
     #llmStream { margin-top: 8px; padding: 10px 12px; border-radius: 8px; background: #f0f7ff; border: 1px solid #b8d4f0; font-size: 15px; color: #1a4d7a; display: none; }
     #llmStream.active { display: block; }
-    .status { margin-top: 10px; font-size: 14px; color: #555; }
-    .status:first-child { margin-top: 0; }
+    .status-row { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+    .log-row { justify-content: flex-start; }
+    .log-row #log { flex: 1; min-width: 0; margin-top: 0; }
     .actions-top { margin-bottom: 12px; }
     .hint { margin-top: 10px; font-size: 13px; color: #666; line-height: 1.4; }
     code { background: #f7f7f7; padding: 2px 6px; border-radius: 6px; }
@@ -40,9 +49,12 @@
     .action-btn.shortcut-coffee:hover { background: #dcc8a0; }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: flex-start; margin-top: 4px; }
     .action { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: nowrap; }
-    .action-buttons { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+    .action-buttons { display: flex; flex-direction: column; gap: 0; align-items: flex-start; }
     .action-buttons .action-btn { padding: 5px 6px; min-height: 38px; }
     .action-buttons button[data-key] { min-width: 56px; min-height: 38px; }
+    .action-buttons-row { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+    .action-buttons-row.action-buttons-row-coffee { margin-top: 8px; }
+    .action-buttons-row button[data-key="enter"] { min-width: 100px; }
     .shortcut-keys { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
     .shortcut-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
     .shortcut-row.shortcut-row-inline { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 0; }
@@ -77,7 +89,7 @@
     body.mode-keyboard .panel-text-cmd { display: none; }
     body.mode-keyboard .panel-mouse { display: none; }
     body.mode-keyboard .panel-keyboard { display: block; }
-    body.mode-keyboard .status { display: none; }
+    body.mode-keyboard .status-row { display: none; }
     body.mode-keyboard #log { display: none; }
     body.mode-keyboard .actions { display: none; }
     body.mode-keyboard .hint { display: none; }
@@ -118,9 +130,8 @@
       <button type="button" class="refresh-btn" id="disconnectRefreshBtn">🔄 刷新页面</button>
     </div>
   </div>
-  <div class="status" id="status">状态：未连接</div>
-  <div id="log"></div>
-  <div class="actions" style="margin-top: 8px;">
+  <div class="status-row log-row">
+    <div id="log"></div>
     <button id="clearBtn" class="action-btn">🧹 清空日志</button>
   </div>
   <div class="hint">
@@ -135,7 +146,14 @@
   <div class="panel-text-cmd">
     <div class="input-box-wrap">
       <textarea id="inputBox" class="disconnected" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
-      <button id="sendBtn" class="action-btn send-btn-float">立即发送</button>
+      <button class="action-btn shortcut-coffee send-btn-float send-btn-float-top-left" data-key="@" title="@">@</button>
+      <button class="action-btn send-btn-float send-btn-float-top-right" data-key="backspace" title="退格">⌫</button>
+      <div class="send-buttons-row">
+        <button id="sendBtnLeft" class="action-btn">立即发送</button>
+        <button class="action-btn" data-key="shift+enter" title="Shift+Enter 换行">换行</button>
+        <button class="action-btn shortcut-coffee" data-key="enter" title="回车">↵ 回车</button>
+        <button id="sendBtn" class="action-btn">立即发送</button>
+      </div>
     </div>
     <div class="action" style="margin-top: 10px;">
       <div class="send-mode-switch">
@@ -146,13 +164,6 @@
           <span class="ios-switch-thumb"></span>
         </label>
         <span class="send-mode-label">手动发送</span>
-      </div>
-      <div class="action-buttons">
-        <button id="newlineBtn" class="action-btn" title="Shift+Enter 换行">换行</button>
-        <button id="clearInputBtn" class="action-btn" title="清空输入框" style="display:none;">🗑 清空</button>
-        <button class="action-btn" data-key="backspace" title="退格">⌫</button>
-        <button class="action-btn shortcut-coffee" data-key="@" title="@">@</button>
-        <button class="action-btn shortcut-coffee" data-key="enter" title="回车">↵ 回车</button>
       </div>
     </div>
     <div class="shortcut-keys">
@@ -308,10 +319,6 @@ function log(msg){
   el.scrollTop = el.scrollHeight;
 }
 
-function setStatus(msg){
-  document.getElementById("status").textContent = "状态：" + msg;
-}
-
 function updateConnectionUI(){
   const box = document.getElementById("inputBox");
   if(!box) return;
@@ -366,21 +373,18 @@ async function connectWS(){
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
-    setStatus("✅ WebSocket 已连接");
     log("✅ 已连接到：" + wsUrl);
     updateConnectionUI();
     hideDisconnectOverlay();
   };
 
   ws.onclose = () => {
-    setStatus("❌ WebSocket 断开");
     log("❌ 连接断开");
     updateConnectionUI();
     showDisconnectOverlay();
   };
 
   ws.onerror = () => {
-    setStatus("❌ 连接错误");
     log("❌ WebSocket 错误");
     updateConnectionUI();
     showDisconnectOverlay();
@@ -486,7 +490,7 @@ document.getElementById("sendModeManual").addEventListener("change", (e) => {
   setSendMode(e.target.checked ? "manual" : "auto");
 });
 
-document.getElementById("sendBtn").onclick = () => {
+function doSend() {
   const box = document.getElementById("inputBox");
   clearTimeout(timer);
   timer = null;
@@ -494,24 +498,10 @@ document.getElementById("sendBtn").onclick = () => {
   box.value = "";
   lastSentText = "";
   box.focus();
-};
+}
+document.getElementById("sendBtn").onclick = doSend;
+document.getElementById("sendBtnLeft").onclick = doSend;
 
-document.getElementById("newlineBtn").onclick = () => {
-  if(ws && ws.readyState === 1){
-    ws.send(JSON.stringify({ type: "key", key: "shift+enter" }));
-    log("↵ 已发送 Shift+Enter 到目标输入框");
-  } else {
-    log("⚠️ 未连接 WebSocket，无法发送换行");
-  }
-  document.getElementById("inputBox").focus();
-};
-
-document.getElementById("clearInputBtn").onclick = () => {
-  const box = document.getElementById("inputBox");
-  box.value = "";
-  lastSentText = "";
-  box.focus();
-};
 
 document.getElementById("clearBtn").onclick = () => {
   const box = document.getElementById("inputBox");
@@ -647,6 +637,11 @@ document.querySelectorAll(".shortcut-btn, button[data-key]").forEach(btn => {
     if (!key || !ws || ws.readyState !== 1) {
       if (!ws || ws.readyState !== 1) log("⚠️ 未连接 WebSocket，无法发送按键");
       return;
+    }
+    // 回车按钮在输入框区域：有文本时先立即发送，再发送回车
+    const inputBox = document.getElementById("inputBox");
+    if (key === "enter" && btn.closest(".input-box-wrap") && inputBox && (inputBox.value || "").trim()) {
+      doSend();
     }
     ws.send(JSON.stringify({ type: "key", key }));
     const keyLabel = key === "@" ? "@" : key === "enter" ? "回车" : key === "backspace" ? "退格" : key === "ctrl+i" ? "跳转 cursor 输入框" : key === "ctrl+n" ? "新建 Agent" : key;
