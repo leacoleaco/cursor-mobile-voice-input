@@ -23,10 +23,12 @@ KEYEVENTF_UNICODE = 0x0004
 WM_CHAR = 0x0102
 VK_BACK = 0x08
 VK_RETURN = 0x0D
+VK_CONTROL = 0x11
 VK_LEFT = 0x25
 VK_UP = 0x26
 VK_RIGHT = 0x27
 VK_DOWN = 0x28
+VK_I = 0x49
 
 
 class MOUSEINPUT(ctypes.Structure):
@@ -181,6 +183,99 @@ def press_arrow(direction: str):
     vk = vk_map.get((direction or "").lower())
     if vk is not None:
         press_vk(vk, times=1)
+
+
+def _find_cursor_window() -> Optional[int]:
+    """Find Cursor IDE main window by title (contains 'Cursor'). Returns HWND or None."""
+    candidates = []  # (hwnd, title) - prefer main editor (has " - " in title)
+
+    def enum_cb(hwnd, _):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        try:
+            buf = ctypes.create_unicode_buffer(512)
+            if user32.GetWindowTextW(hwnd, buf, 512):
+                title = buf.value
+                if "cursor" in title.lower():
+                    candidates.append((hwnd, title))
+        except Exception:
+            pass
+        return True
+
+    WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
+
+    if not candidates:
+        return None
+    # Prefer main editor window (title like "Cursor - path") over dialogs
+    main = next((h for h, t in candidates if " - " in t), None)
+    return main if main else candidates[0][0]
+
+
+SW_RESTORE = 9
+SW_SHOW = 5
+
+
+def _activate_window(hwnd: int) -> bool:
+    """
+    Bring window to foreground. Uses AttachThreadInput workaround so a background
+    process can activate another app's window. Returns True if successful.
+    """
+    try:
+        fg_hwnd = user32.GetForegroundWindow()
+        if fg_hwnd == hwnd:
+            time.sleep(0.1)
+            return True
+
+        attached = False
+        if fg_hwnd:
+            fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None)
+            my_tid = kernel32.GetCurrentThreadId()
+            if fg_tid and fg_tid != my_tid:
+                # Attach our thread to foreground thread so we can call SetForegroundWindow
+                attached = bool(user32.AttachThreadInput(my_tid, fg_tid, True))
+
+        try:
+            if user32.IsIconic(hwnd):
+                user32.ShowWindow(hwnd, SW_RESTORE)
+            user32.BringWindowToTop(hwnd)
+            user32.SetForegroundWindow(hwnd)
+            # SwitchToThisWindow can force focus when SetForegroundWindow is restricted (fUnknown=False)
+            if hasattr(user32, "SwitchToThisWindow"):
+                user32.SwitchToThisWindow(hwnd, False)
+        finally:
+            if attached and fg_hwnd:
+                fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None)
+                my_tid = kernel32.GetCurrentThreadId()
+                user32.AttachThreadInput(my_tid, fg_tid, False)
+
+        time.sleep(0.2)
+        return True
+    except Exception:
+        return False
+
+
+def focus_cursor_and_press_ctrl_i() -> bool:
+    """
+    Find Cursor IDE window, activate it, then press Ctrl+I.
+    Returns True if Cursor was found and activated, False otherwise.
+    """
+    hwnd = _find_cursor_window()
+    if not hwnd:
+        return False
+    if not _activate_window(hwnd):
+        return False
+    press_ctrl_i()
+    return True
+
+
+def press_ctrl_i():
+    """Press Ctrl+I to focus Cursor IDE agent input box."""
+    down_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    down_i = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_I, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    up_i = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_I, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    up_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    _send_input([down_ctrl, down_i, up_i, up_ctrl])
 
 
 _LAST_FG_HWND = None

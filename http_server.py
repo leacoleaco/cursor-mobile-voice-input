@@ -22,6 +22,8 @@ from input_control import (
     backspace,
     press_enter,
     press_arrow,
+    press_ctrl_i,
+    focus_cursor_and_press_ctrl_i,
 )
 
 PORT: Optional[int] = None
@@ -101,13 +103,14 @@ def _handle_mouse(payload: dict):
         print(f"[mouse] error: {e}")
 
 
-def _handle_key(payload: dict):
-    """Handle key shortcut: @, enter, backspace, arrow keys."""
+def _handle_key(payload: dict) -> Optional[dict]:
+    """Handle key shortcut: @, enter, backspace, arrow keys, ctrl+i."""
     key = (payload.get("key") or "").strip().lower()
     if not key:
-        return
+        return None
     try:
-        focus_target()
+        if key != "ctrl+i":
+            focus_target()
         if key == "@":
             send_unicode_text("@")
         elif key == "enter":
@@ -116,8 +119,14 @@ def _handle_key(payload: dict):
             backspace(1)
         elif key in ("up", "down", "left", "right"):
             press_arrow(key)
+        elif key == "ctrl+i":
+            ok = focus_cursor_and_press_ctrl_i()
+            if not ok:
+                print("[key] Cursor IDE 窗口未找到")
+            return {"ok": ok, "message": "已定位 Cursor 输入框" if ok else "未找到 Cursor IDE 窗口"}
     except Exception as e:
         print(f"[key] error: {e}")
+    return None
 
 
 def create_app(get_url_state):
@@ -200,7 +209,12 @@ def create_app(get_url_state):
                 elif msg_type == "mouse":
                     _handle_mouse(payload)
                 elif msg_type == "key":
-                    _handle_key(payload)
+                    result = _handle_key(payload)
+                    if result is not None:
+                        try:
+                            ws.send(json.dumps({"type": "key_result", **result}, ensure_ascii=False))
+                        except Exception:
+                            pass
                 else:
                     handle_text(str(content or ""), mode="text")
 

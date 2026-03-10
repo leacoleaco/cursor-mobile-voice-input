@@ -105,6 +105,7 @@
     <div class="shortcut-keys">
       <div class="shortcut-left">
         <button class="shortcut-btn" data-key="backspace" title="退格">⌫</button>
+        <button class="shortcut-btn" data-key="ctrl+i" title="Cursor 输入框 (Ctrl+I)">📝 Cursor</button>
       </div>
       <div class="shortcut-right">
         <div class="shortcut-arrows">
@@ -262,6 +263,8 @@ async function connectWS(){
       }else if(data && data.type === "cmd_result"){
         showLlmStream("");
         log("✅ 命令结果：" + data.message);
+      }else if(data && data.type === "key_result"){
+        log(data.ok ? "✅ " + (data.message || "已定位 Cursor 输入框") : "⚠️ " + (data.message || "未找到 Cursor IDE 窗口"));
       }else if(data && data.type === "clipboard"){
         showClipboard(data.string || "");
         log("🧲 收到服务器推送的剪贴板内容");
@@ -390,7 +393,8 @@ document.querySelectorAll(".shortcut-btn").forEach(btn => {
       return;
     }
     ws.send(JSON.stringify({ type: "key", key }));
-    log("⌨️ 发送按键：" + (key === "@" ? "@" : key === "enter" ? "回车" : key === "backspace" ? "退格" : key));
+    const keyLabel = key === "@" ? "@" : key === "enter" ? "回车" : key === "backspace" ? "退格" : key === "ctrl+i" ? "Cursor 输入框 (Ctrl+I)" : key;
+    log("⌨️ 发送按键：" + keyLabel);
   };
 });
 
