@@ -18,7 +18,7 @@
     .mode-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
     .mode-btn { font-size: 15px; padding: 8px 12px; border-radius: 999px; }
     .mode-btn.active { background: #ffe5d6; border-color: #f6a17c; color: #7a2b12; }
-    .action-btn { background: #fff; border-color: #cfcfcf; }
+    .action-btn { background: #fff; border-color: #cfcfcf; padding: 2px; }
     .action-btn:hover { background: #f2f2f2; }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: flex-start; margin-top: 4px; }
     .clipboard-panel { display: none; position: relative; margin-top: 14px; padding: 14px 16px 16px; border-radius: 14px; background: #f4f4f4; border: 1px solid #d8d8d8; box-shadow: inset 4px 4px 10px rgba(0,0,0,0.12), inset -4px -4px 10px rgba(255,255,255,0.8); }
@@ -70,15 +70,13 @@
     <div class="hint">第一次点击快速定位，弹出触控板滑动微调；或先点击选位置，再使用下方按钮</div>
     <div class="actions" style="margin-top: 8px;">
       <button id="mouseRefreshBtn" class="action-btn">🔄 刷新截图</button>
+      <button id="mouseRightBtn" class="action-btn">🖱 右键</button>
+      <button id="mouseScrollUpBtn" class="action-btn">⬆ 滚轮上</button>
+      <button id="mouseScrollDownBtn" class="action-btn">⬇ 滚轮下</button>
     </div>
     <div id="mouseScreenshotWrap" class="mouse-screenshot-wrap">
       <div id="mouseScreenshotPlaceholder" style="padding: 40px; text-align: center; color: #888;">点击「刷新截图」加载屏幕</div>
       <img id="mouseScreenshotImg" alt="屏幕截图" style="display: none;" />
-    </div>
-    <div class="mouse-actions">
-      <button id="mouseRightBtn" class="action-btn">🖱 右键</button>
-      <button id="mouseScrollUpBtn" class="action-btn">⬆ 滚轮上</button>
-      <button id="mouseScrollDownBtn" class="action-btn">⬇ 滚轮下</button>
     </div>
   </div>
 
@@ -136,6 +134,12 @@ function setMode(mode){
   document.getElementById("modeCmdBtn").classList.toggle("active", mode === "cmd");
   document.getElementById("modeMouseBtn").classList.toggle("active", mode === "mouse");
   document.body.classList.toggle("mode-mouse", mode === "mouse");
+  const inputBox = document.getElementById("inputBox");
+  if(mode === "cmd"){
+    inputBox.placeholder = "可以输入 比如 清空输入框、修改某个字到某个字 这种说法";
+  }else if(mode === "text"){
+    inputBox.placeholder = "点击这里调起输入法（推荐用手机键盘语音输入）";
+  }
   log("✅ 切换模式：" + (mode === "text" ? "文字" : mode === "cmd" ? "命令" : "鼠标"));
   if(mode === "mouse") loadScreenshot();
 }
@@ -292,27 +296,37 @@ function sendMouseAction(action, x, y, delta, dx, dy){
   ws.send(JSON.stringify(payload));
 }
 
-async function loadScreenshot(){
+async function loadScreenshot(silent){
   const placeholder = document.getElementById("mouseScreenshotPlaceholder");
   const img = document.getElementById("mouseScreenshotImg");
-  placeholder.textContent = "加载中...";
-  img.style.display = "none";
+  if(!silent){
+    placeholder.textContent = "加载中...";
+    img.style.display = "none";
+  }
   try{
     const r = await fetch("/api/screenshot");
     const data = await r.json();
     if(!data.ok || !data.image){
-      placeholder.textContent = "截图失败";
+      if(!silent) placeholder.textContent = "截图失败";
       return;
     }
     img.src = "data:image/png;base64," + data.image;
     img.style.display = "block";
     placeholder.style.display = "none";
     screenshotBounds = data.bounds || { left: 0, top: 0, width: 0, height: 0 };
-    log("🖱 屏幕截图已加载");
+    if(!silent) log("🖱 屏幕截图已加载");
   }catch(e){
-    placeholder.textContent = "加载失败：" + e.message;
-    log("⚠️ 截图加载失败：" + e.message);
+    if(!silent){
+      placeholder.textContent = "加载失败：" + e.message;
+      log("⚠️ 截图加载失败：" + e.message);
+    }
   }
+}
+
+function silentRefreshScreenshot(){
+  setTimeout(() => {
+    if(currentMode === "mouse" && screenshotBounds) loadScreenshot(true);
+  }, 400);
 }
 
 function imgClickToImagePixel(clientX, clientY, imgEl){
@@ -462,6 +476,7 @@ document.getElementById("trackpadLeftBtn").onclick = () => {
   sendMouseAction("left_click");
   log("🖱 左键点击");
   hideTrackpad();
+  silentRefreshScreenshot();
 };
 
 document.getElementById("trackpadCancelBtn").onclick = () => hideTrackpad();
@@ -474,6 +489,7 @@ document.getElementById("mouseRightBtn").onclick = () => {
   if(lastMousePos){
     sendMouseAction("right_click", lastMousePos.x, lastMousePos.y);
     log("🖱 右键点击 (" + Math.round(lastMousePos.x) + "," + Math.round(lastMousePos.y) + ")");
+    silentRefreshScreenshot();
   }else{
     log("⚠️ 请先点击截图选择位置");
   }
@@ -483,6 +499,7 @@ document.getElementById("mouseScrollUpBtn").onclick = () => {
   if(lastMousePos){
     sendMouseAction("scroll", lastMousePos.x, lastMousePos.y, 3);
     log("🖱 滚轮向上");
+    silentRefreshScreenshot();
   }else{
     log("⚠️ 请先点击截图选择位置");
   }
@@ -492,6 +509,7 @@ document.getElementById("mouseScrollDownBtn").onclick = () => {
   if(lastMousePos){
     sendMouseAction("scroll", lastMousePos.x, lastMousePos.y, -3);
     log("🖱 滚轮向下");
+    silentRefreshScreenshot();
   }else{
     log("⚠️ 请先点击截图选择位置");
   }
