@@ -100,8 +100,13 @@ def main():
         # 调试模式：不显示托盘，仅 QR 窗口；关闭窗口即退出
         dev_close_event.wait()
     else:
-        # 开发模式且使用 reloader 时：父进程不显示托盘，避免双托盘
-        if os.environ.get("LANVOICE_NO_RELOADER") != "1" and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        # 仅开发模式+reloader 时：父进程 sleep 避免双托盘；打包 exe 时 dev_mode=False，直接显示托盘
+        is_reloader_parent = (
+            dev_mode
+            and os.environ.get("LANVOICE_NO_RELOADER") != "1"
+            and os.environ.get("WERKZEUG_RUN_MAIN") != "true"
+        )
+        if is_reloader_parent:
             import time
             while True:
                 time.sleep(3600)
