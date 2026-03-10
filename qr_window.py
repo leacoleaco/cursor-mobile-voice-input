@@ -1,4 +1,5 @@
 """Tkinter QR window with IP selection and Ollama settings."""
+import os
 import queue
 import threading
 from typing import Callable, List, Optional, Tuple
@@ -23,6 +24,8 @@ class QRWindowManager:
         get_payload_url: Callable[[], str],
         get_config_path: Callable[[], str],
         list_candidates: Callable[[], List[Tuple[str, str]]],
+        *,
+        dev_mode: bool = False,
     ):
         self.get_user_ip = get_user_ip
         self.on_ip_change = on_ip_change
@@ -31,6 +34,7 @@ class QRWindowManager:
         self.get_payload_url = get_payload_url
         self.get_config_path = get_config_path
         self.list_candidates = list_candidates
+        self.dev_mode = dev_mode
 
         self.cmd_q = queue.Queue()
         self.thread = threading.Thread(target=self._tk_thread, daemon=True)
@@ -93,6 +97,10 @@ class QRWindowManager:
         self.img_label = None
         self.url_label = None
         self.tip_label = None
+
+        if self.dev_mode:
+            self.root.quit()
+            os._exit(0)
 
     def _ensure_window(self):
         if self.top is not None:
@@ -238,12 +246,13 @@ class QRWindowManager:
         mode = "手动" if (self.get_user_ip() and self.get_user_ip().strip()) else "自动"
         http_port, ws_port = self.get_ports()
         llm_line = f"LLM：{config_store.LLM_MODEL} (已启用)" if config_store.LLM_ENABLED else "LLM：未启用"
+        close_tip = "关闭此窗口将退出程序" if self.dev_mode else "关闭此窗口不影响后台运行"
         self.tip_label.configure(
             text=f"手机扫码打开网页（同一 WiFi / 同网段）\n"
             f"模式：{mode}  IP：{ip_show}\n"
             f"HTTP:{http_port}  WS:{ws_port}\n"
             f"{llm_line}\n"
-            f"关闭此窗口不影响后台运行\n"
+            f"{close_tip}\n"
             f"配置文件：{self.get_config_path()}"
         )
 

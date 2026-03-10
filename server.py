@@ -47,6 +47,7 @@ def main():
         config_store.save_config()
         refresh_urls()
 
+    dev_mode = os.environ.get("LANVOICE_DEV") in ("1", "true", "yes")
     qr_mgr = QRWindowManager(
         get_user_ip=lambda: config_store.USER_IP,
         on_ip_change=on_ip_change,
@@ -55,6 +56,7 @@ def main():
         get_payload_url=lambda: qr_payload_url,
         get_config_path=lambda: CONFIG_PATH_IN_USE,
         list_candidates=get_ipv4_candidates,
+        dev_mode=dev_mode,
     )
 
     print("\n======================================")
