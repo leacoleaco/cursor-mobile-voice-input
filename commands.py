@@ -242,7 +242,39 @@ def handle_command_with_llm(
         send_result({"type": "cmd_result", "string": text, "ok": True, "message": result.display_text})
         return
 
-    # LLM-enabled path
+    # LLM-enabled path: first try local matching, then LLM only when no match
+    # Step 1: Try built-in processor
+    result = processor.handle(text)
+    if result.handled:
+        if result.output == "":
+            print(f"[cmd] done (local): {result.display_text}")
+            send_progress({"type": "cmd_progress", "step": "done", "message": result.display_text})
+            send_result({"type": "cmd_result", "string": text, "ok": True, "message": result.display_text})
+            return
+        from text_handler import execute_output
+        from input_control import focus_target
+        focus_target()
+        execute_output(result.output)
+        if not result.handled and isinstance(result.output, str):
+            processor.record_output(result.output)
+        print(f"[cmd] done (local): {result.display_text}")
+        send_progress({"type": "cmd_progress", "step": "done", "message": result.display_text})
+        send_result({"type": "cmd_result", "string": text, "ok": True, "message": result.display_text})
+        return
+
+    # Step 2: Try exact match on config commands
+    for cmd in config_store.COMMANDS:
+        match_string = (cmd.get("match-string") or "").strip()
+        if match_string and match_string == text:
+            print(f"[cmd] matched (local): {match_string}")
+            send_progress({"type": "cmd_progress", "step": "matched", "message": f"匹配到：{match_string}"})
+            result = execute_config_command_by_match_string(match_string)
+            msg = result.output.get("message") if isinstance(result.output, dict) else result.display_text
+            ok = bool(result.output.get("ok")) if isinstance(result.output, dict) else False
+            send_result({"type": "cmd_result", "string": text, "ok": ok, "message": msg})
+            return
+
+    # Step 3: No local match - call LLM for fuzzy matching
     candidates = get_all_command_candidates()
     print("[log] candidates: ", candidates)
     if not candidates:
