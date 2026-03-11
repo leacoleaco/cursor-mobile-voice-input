@@ -6,6 +6,8 @@ import os
 import sys
 import threading
 
+from i18n import _
+
 # Fix Windows console encoding for emoji/Unicode (GBK cannot encode emoji)
 if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
     try:
@@ -26,8 +28,10 @@ from tray_app import run_tray
 
 
 def main():
-    # ✅ 启动即读取/创建 config（打包后优先 exe 同级 config.json）
+    # Load config first (exe dir config.json when packaged)
     config_store.load_config()
+    from i18n import set_locale
+    set_locale(config_store.LOCALE)
 
     # Generate fresh token on every startup when auth is required
     if config_store.AUTH_REQUIRED:
@@ -74,15 +78,15 @@ def main():
     )
 
     print("\n======================================")
-    print("✅ 已启动")
-    print("📱 手机打开：", qr_payload_url)
-    print("端口:", port, "(HTTP + WebSocket 共用)")
+    print("✅", _("Started"))
+    print("📱", _("Open on phone:"), qr_payload_url)
+    print(_("Port:"), port, "(HTTP + WebSocket)")
     print("======================================")
     print("CONFIG(primary):", CONFIG_PATH_PRIMARY)
     print("CONFIG(fallback):", CONFIG_PATH_FALLBACK)
     print("CONFIG(in use):", CONFIG_PATH_IN_USE)
     if config_store.LLM_ENABLED:
-        print("LLM 辅助:", config_store.LLM_MODEL, "@", config_store.LLM_BASE_URL, "(命令模糊匹配)")
+        print(_("LLM assist:"), config_store.LLM_MODEL, "@", config_store.LLM_BASE_URL)
     print("======================================\n")
 
     threading.Thread(target=lambda: run_server(get_url_state), daemon=True).start()
@@ -93,14 +97,14 @@ def main():
             try:
                 from llm_assistant import preload_model
                 if preload_model(config_store.LLM_MODEL, config_store.LLM_BASE_URL):
-                    print(f"✅ LLM 模型已预加载: {config_store.LLM_MODEL}")
+                    print(f"✅ {_('LLM model preloaded')}: {config_store.LLM_MODEL}")
             except Exception as e:
-                print(f"⚠️ LLM 预加载跳过: {e}")
+                print(f"⚠️ {_('LLM preload skipped')}: {e}")
         threading.Thread(target=_preload_llm, daemon=True).start()
 
     notify(
-        "CursorMobileVoiceInput 启动成功",
-        f"端口:{port} (HTTP+WS)\n单击托盘图标快速发送剪贴板到网页\n右键托盘菜单可显示二维码",
+        _("CursorMobileVoiceInput started"),
+        _("Port:{port} (HTTP+WS)\nClick tray to send clipboard\nRight-click tray for QR").format(port=port),
     )
     # ✅ 启动后自动打开二维码窗口（加一点延迟更稳）
     threading.Timer(0.3, qr_mgr.show).start()

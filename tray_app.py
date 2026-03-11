@@ -6,6 +6,7 @@ import pystray
 from PIL import Image
 from pystray import MenuItem as item
 
+from i18n import _
 from input_control import get_clipboard_text
 from notifier import notify, set_tray_icon
 from paths import resource_path
@@ -28,7 +29,7 @@ def tray_send_clipboard(icon, _):
     text = (get_clipboard_text() or "").strip()
     if not text:
         print("[clipboard] empty or unreadable clipboard")
-        notify("剪贴板发送", "剪贴板为空或无法读取")
+        notify(_("Clipboard sent"), _("Clipboard empty or unreadable"))
         return
 
     now = time.time()
@@ -40,13 +41,13 @@ def tray_send_clipboard(icon, _):
 
     ok = schedule_broadcast({"type": "clipboard", "string": text})
     if ok:
-        notify("剪贴板发送", "已发送到网页，可在手机端复制")
+        notify(_("Clipboard sent"), _("Sent to web page, copy on mobile"))
     else:
-        notify("剪贴板发送失败", "WebSocket 未运行或无连接")
+        notify(_("Clipboard send failed"), _("WebSocket not running or no connection"))
 
 
 def tray_quit(icon, _):
-    notify("退出", "LAN Voice Input 已退出")
+    notify(_("Quit"), _("LAN Voice Input has exited"))
     icon.stop()
     os._exit(0)
 
@@ -56,9 +57,9 @@ def run_tray(qr_manager):
     QR_MANAGER = qr_manager
     image_path = resource_path("icon.ico")
     menu = (
-        item("发送剪贴板到网页", tray_send_clipboard, default=True),
-        item("显示二维码", tray_show_qr),
-        item("退出", tray_quit),
+        item(_("Send clipboard to web page"), tray_send_clipboard, default=True),
+        item(_("Show QR code"), tray_show_qr),
+        item(_("Quit"), tray_quit),
     )
     tray_icon = pystray.Icon("CursorMobileVoiceInput", Image.open(image_path), "LAN Voice Input", menu)
     set_tray_icon(tray_icon)

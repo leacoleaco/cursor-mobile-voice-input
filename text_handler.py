@@ -2,6 +2,7 @@
 import time
 from typing import Optional
 
+from i18n import _
 from commands import CommandResult, processor
 from input_control import (
     backspace,
@@ -54,7 +55,7 @@ def handle_text_replace(text: str, last_sync_text: str | None = None, last_sync_
     if server_dedup(text, "text_sync"):
         return
     if processor.paused:
-        notify("指令执行", f"⏸(暂停中) 同步")
+        notify(_("Command execution"), _("Paused - sync"))
         return
     focus_target()
     # Use HTML when content unchanged to preserve Cursor @mentions and refs
@@ -98,16 +99,16 @@ def handle_text(
         return
 
     if text == "__TEST_INJECT__":
-        notify("测试注入", "请将鼠标放在记事本输入区，正在注入测试文本…")
+        notify(_("Test inject"), _("Place cursor in Notepad, injecting test text..."))
         focus_target()
         try:
             send_unicode_text(TEST_INJECT_TEXT)
             press_enter()
-            send_unicode_text("✅ 如果你看到这行文字，说明 SendInput 注入成功！")
+            send_unicode_text("✅ " + _("If you see this, SendInput succeeded!"))
             press_enter()
-            notify("测试注入成功", "请查看记事本是否出现两行测试文本。")
+            notify(_("Test inject success"), _("Check if two lines appear in Notepad"))
         except Exception as e:
-            notify("测试注入失败", str(e))
+            notify(_("Test inject failed"), str(e))
         return
 
     if mode != "cmd":
@@ -115,7 +116,7 @@ def handle_text(
             handle_text_replace(text, last_sync_text, last_sync_html)
             return
         if processor.paused:
-            notify("指令执行", f"⏸(暂停中) {text}")
+            notify(_("Command execution"), _("Paused - {text}").format(text=text))
             return
         focus_target()
         execute_output(text)

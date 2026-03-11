@@ -23,6 +23,7 @@ LLM_MODEL: str = "qwen3.5:0.8b"
 LLM_BASE_URL: str = "http://127.0.0.1:11434"
 ACCESS_TOKEN: Optional[str] = None  # Required for HTTP/WS when AUTH_REQUIRED; None = no auth
 AUTH_REQUIRED: bool = True  # If True, HTTP/WS require token; if False, no auth (legacy)
+LOCALE: str = "zh_CN"  # UI language: zh_CN, en
 
 
 def _try_write_json(path: str, data: dict) -> bool:
@@ -61,7 +62,7 @@ def load_config():
     global USER_IP, CONFIG_PATH_IN_USE, CONFIG_DATA, COMMANDS, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL
 
     def _apply(data: dict):
-        global CONFIG_DATA, COMMANDS, USER_IP, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, ACCESS_TOKEN, AUTH_REQUIRED
+        global CONFIG_DATA, COMMANDS, USER_IP, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, ACCESS_TOKEN, AUTH_REQUIRED, LOCALE
         CONFIG_DATA = data
         COMMANDS = _normalize_commands(data.get("commands"))
         ip = (data.get("user_ip") or "").strip()
@@ -71,6 +72,7 @@ def load_config():
         LLM_BASE_URL = (data.get("llm_base_url") or "http://127.0.0.1:11434").strip() or "http://127.0.0.1:11434"
         ACCESS_TOKEN = (data.get("access_token") or "").strip() or None
         AUTH_REQUIRED = data.get("auth_required", True)
+        LOCALE = (data.get("locale") or "zh_CN").strip() or "zh_CN"
 
     data = _try_read_json(CONFIG_PATH_PRIMARY)
     if isinstance(data, dict):
@@ -84,8 +86,10 @@ def load_config():
         CONFIG_PATH_IN_USE = CONFIG_PATH_FALLBACK
         return
 
+    global LOCALE
     USER_IP = None
-    CONFIG_DATA = {"user_ip": None, "commands": [], "llm_enabled": False, "llm_model": "qwen3.5:0.8b", "llm_base_url": "http://127.0.0.1:11434", "access_token": None}
+    LOCALE = "zh_CN"
+    CONFIG_DATA = {"user_ip": None, "commands": [], "llm_enabled": False, "llm_model": "qwen3.5:0.8b", "llm_base_url": "http://127.0.0.1:11434", "access_token": None, "locale": "zh_CN"}
     COMMANDS = []
     LLM_ENABLED = False
     LLM_MODEL = "qwen3.5:0.8b"
@@ -107,6 +111,7 @@ def save_config():
     data["llm_base_url"] = LLM_BASE_URL
     data["access_token"] = ACCESS_TOKEN
     data["auth_required"] = AUTH_REQUIRED
+    data["locale"] = LOCALE
 
     if _try_write_json(CONFIG_PATH_PRIMARY, data):
         CONFIG_PATH_IN_USE = CONFIG_PATH_PRIMARY

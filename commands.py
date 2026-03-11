@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Callable, List, Optional
 
 import config_store
+from i18n import _
 from settings import CLEAR_BACKSPACE_MAX
 
 
@@ -38,33 +39,33 @@ class CommandProcessor:
 
         if text in ["暂停输入", "暂停", "停止输入"]:
             self.paused = True
-            return CommandResult(True, "⏸ 已暂停输入", "")
+            return CommandResult(True, "⏸ " + _("Paused"), "")
 
         if text in ["继续输入", "继续", "恢复输入"]:
             self.paused = False
-            return CommandResult(True, "▶️ 已恢复输入", "")
+            return CommandResult(True, "▶️ " + _("Resumed"), "")
 
         if self.paused:
-            return CommandResult(True, f"⏸(暂停中) {raw_text}", "")
+            return CommandResult(True, _("Paused - {text}").format(text=raw_text), "")
 
         if text in ["换行", "回车", "下一行"]:
-            return CommandResult(True, "↩️ 换行", ("__ENTER__", 1))
+            return CommandResult(True, "↩️ " + _("Newline"), ("__ENTER__", 1))
 
         if text in self.punc_map:
             return CommandResult(True, f"⌨️ {text}", self.punc_map[text])
 
         if text in ["删除上一句", "撤回上一句", "撤销上一句", "删掉上一句"]:
             if not self.history:
-                return CommandResult(True, "⚠️ 没有可删除的内容", "")
+                return CommandResult(True, "⚠️ " + _("Nothing to delete"), "")
             last = self.history.pop()
-            return CommandResult(True, f"⌫ 删除上一句：{last}", ("__BACKSPACE__", len(last)))
+            return CommandResult(True, "⌫ " + _("Deleted last sentence: {last}").format(last=last), ("__BACKSPACE__", len(last)))
 
         n = self.parse_delete_n(text)
         if n is not None:
-            return CommandResult(True, f"⌫ 删除 {n} 个字", ("__BACKSPACE__", n))
+            return CommandResult(True, "⌫ " + _("Deleted {n} characters").format(n=n), ("__BACKSPACE__", n))
 
         if text in ["清空", "清除全部", "全部删除"]:
-            return CommandResult(True, "🧹 清空", ("__BACKSPACE__", CLEAR_BACKSPACE_MAX))
+            return CommandResult(True, "🧹 " + _("Cleared"), ("__BACKSPACE__", CLEAR_BACKSPACE_MAX))
 
         return CommandResult(False, raw_text, raw_text)
 
@@ -149,42 +150,42 @@ def execute_config_command_by_match_string(match_string: str) -> CommandResult:
         if ms == match_string:
             args = _build_command_args(cmd.get("command"), cmd.get("args"))
             if not args:
-                return CommandResult(True, f"命令配置错误：{match_string}", {"ok": False, "message": "命令配置错误"})
+                return CommandResult(True, _("Command config error") + f": {match_string}", {"ok": False, "message": _("Command config error")})
             try:
                 completed = subprocess.run(args, capture_output=True, text=True)
                 ok = completed.returncode == 0
                 stderr = (completed.stderr or "").strip()
-                msg = f"指令执行成功：{match_string}" if ok else f"指令执行失败：{match_string}（exit {completed.returncode}）"
+                msg = (_("Command executed successfully") if ok else _("Command execution failed")) + f": {match_string}" + ("" if ok else f" (exit {completed.returncode})")
                 if stderr:
                     msg = f"{msg} - {stderr}"
                 return CommandResult(True, msg, {"ok": ok, "message": msg})
             except Exception as e:
-                return CommandResult(True, f"指令执行异常：{match_string} - {e}", {"ok": False, "message": str(e)})
-    return CommandResult(True, f"未找到指令：{match_string}", {"ok": False, "message": f"未找到指令：{match_string}"})
+                return CommandResult(True, _("Command execution error") + f": {match_string} - {e}", {"ok": False, "message": str(e)})
+    return CommandResult(True, _("Command not found") + f": {match_string}", {"ok": False, "message": _("Command not found") + f": {match_string}"})
 
 
 def execute_command(text: str) -> CommandResult:
     cmd = match_command(text)
     if not cmd:
-        return CommandResult(True, f"未找到匹配指令：{text}", {"ok": False, "message": "未找到匹配指令"})
+        return CommandResult(True, _("No matching command") + f": {text}", {"ok": False, "message": _("No matching command")})
 
     args = _build_command_args(cmd.get("command"), cmd.get("args"))
     if not args:
-        return CommandResult(True, f"命令配置错误：{text}", {"ok": False, "message": "命令配置错误"})
+        return CommandResult(True, _("Command config error") + f": {text}", {"ok": False, "message": _("Command config error")})
 
     try:
         completed = subprocess.run(args, capture_output=True, text=True)
         ok = completed.returncode == 0
         stderr = (completed.stderr or "").strip()
         if ok:
-            msg = f"指令执行成功：{text}"
+            msg = _("Command executed successfully") + f": {text}"
         else:
-            msg = f"指令执行失败：{text}（exit {completed.returncode}）"
+            msg = _("Command execution failed") + f": {text} (exit {completed.returncode})"
             if stderr:
                 msg = f"{msg} - {stderr}"
         return CommandResult(True, msg, {"ok": ok, "message": msg})
     except Exception as e:
-        return CommandResult(True, f"指令执行异常：{text} - {e}", {"ok": False, "message": f"指令执行异常：{e}"})
+        return CommandResult(True, _("Command execution error") + f": {text} - {e}", {"ok": False, "message": _("Command execution error") + f": {e}"})
 
 
 def handle_command_with_llm(
@@ -213,7 +214,7 @@ def handle_command_with_llm(
         if cmd:
             ms = (cmd.get("match-string") or "").strip()
             print(f"[cmd] matched: {ms}")
-            send_progress({"type": "cmd_progress", "step": "matched", "message": f"匹配到：{ms}"})
+            send_progress({"type": "cmd_progress", "step": "matched", "message": _("Matched: {ms}").format(ms=ms)})
             result = execute_command(text)
             print(f"[cmd] result: {result.output.get('message') if isinstance(result.output, dict) else result.display_text}")
             send_result({
@@ -267,7 +268,7 @@ def handle_command_with_llm(
         match_string = (cmd.get("match-string") or "").strip()
         if match_string and match_string == text:
             print(f"[cmd] matched (local): {match_string}")
-            send_progress({"type": "cmd_progress", "step": "matched", "message": f"匹配到：{match_string}"})
+            send_progress({"type": "cmd_progress", "step": "matched", "message": _("Matched: {ms}").format(ms=match_string)})
             result = execute_config_command_by_match_string(match_string)
             msg = result.output.get("message") if isinstance(result.output, dict) else result.display_text
             ok = bool(result.output.get("ok")) if isinstance(result.output, dict) else False
@@ -279,8 +280,8 @@ def handle_command_with_llm(
     print("[log] candidates: ", candidates)
     if not candidates:
         print("[cmd] error: 无可用指令")
-        send_progress({"type": "cmd_progress", "step": "error", "message": "无可用指令"})
-        send_result({"type": "cmd_result", "string": text, "ok": False, "message": "无可用指令"})
+        send_progress({"type": "cmd_progress", "step": "error", "message": _("No commands available")})
+        send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("No commands available")})
         return
 
     def on_progress(step: str, msg: str):
@@ -304,17 +305,17 @@ def handle_command_with_llm(
     except Exception as e:
         print(f"[cmd] error: LLM 异常 - {e}")
         on_progress("error", str(e))
-        send_result({"type": "cmd_result", "string": text, "ok": False, "message": f"LLM 异常：{e}"})
+        send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("LLM error: {e}").format(e=e)})
         return
 
     if not resolved:
         print(f"[cmd] 未匹配到指令: {text}")
-        send_result({"type": "cmd_result", "string": text, "ok": False, "message": "未匹配到指令"})
+        send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("No command matched")})
         return
 
     # Execute: config command or built-in
     print(f"[cmd] executing: {resolved}")
-    send_progress({"type": "cmd_progress", "step": "executing", "message": f"执行：{resolved}"})
+    send_progress({"type": "cmd_progress", "step": "executing", "message": _("Executing: {resolved}").format(resolved=resolved)})
 
     if resolved in [(c.get("match-string") or "").strip() for c in config_store.COMMANDS if (c.get("match-string") or "").strip()]:
         result = execute_config_command_by_match_string(resolved)

@@ -7,33 +7,39 @@ from flask import Flask, Response, jsonify, request, send_file
 from flask_sock import Sock
 
 from auth_token import get_token, validate_request
-
+from i18n import _
 from commands import handle_command_with_llm
+from web_i18n import WEB_TRANSLATIONS
 
 
 def _auth_error_html() -> str:
     """HTML page shown when auth fails on main page (e.g. old QR / wrong token)."""
-    return """<!DOCTYPE html>
+    title = _("Permission error")
+    heading = _("Invalid permission")
+    msg = _("Please scan again")
+    btn = _("I understand")
+    alert_msg = _("Close this page and scan the latest QR code")
+    return f"""<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>权限错误</title>
+  <title>{title}</title>
   <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); padding: 20px; }
-    .dialog { background: #fff; border-radius: 14px; padding: 28px; max-width: 320px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
-    .dialog h3 { margin: 0 0 14px; font-size: 20px; color: #c0392b; }
-    .dialog p { margin: 0 0 24px; font-size: 16px; color: #555; line-height: 1.6; }
-    .dialog .btn { font-size: 16px; padding: 12px 24px; border-radius: 10px; border: none; background: #4a90d9; color: #fff; cursor: pointer; }
-    .dialog .btn:active { transform: translateY(1px); }
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; font-family: sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); padding: 20px; }}
+    .dialog {{ background: #fff; border-radius: 14px; padding: 28px; max-width: 320px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }}
+    .dialog h3 {{ margin: 0 0 14px; font-size: 20px; color: #c0392b; }}
+    .dialog p {{ margin: 0 0 24px; font-size: 16px; color: #555; line-height: 1.6; }}
+    .dialog .btn {{ font-size: 16px; padding: 12px 24px; border-radius: 10px; border: none; background: #4a90d9; color: #fff; cursor: pointer; }}
+    .dialog .btn:active {{ transform: translateY(1px); }}
   </style>
 </head>
 <body>
   <div class="dialog">
-    <h3>⚠️ 权限不正确</h3>
-    <p>请重新扫码再试</p>
-    <button type="button" class="btn" onclick="alert('请关闭此页面，使用最新二维码重新扫码')">我知道了</button>
+    <h3>⚠️ {heading}</h3>
+    <p>{msg}</p>
+    <button type="button" class="btn" onclick="alert('{alert_msg}')">{btn}</button>
   </div>
 </body>
 </html>"""
@@ -152,12 +158,12 @@ def _handle_key(payload: dict) -> Optional[dict]:
             ok = focus_cursor_and_press_ctrl_i()
             if not ok:
                 print("[key] Cursor IDE 窗口未找到")
-            return {"ok": ok, "message": "已定位 Cursor 输入框" if ok else "未找到 Cursor IDE 窗口"}
+            return {"ok": ok, "message": _("Cursor input focused") if ok else _("Cursor IDE window not found")}
         if key == "ctrl+n":
             ok = focus_cursor_and_press_ctrl_n()
             if not ok:
                 print("[key] Cursor IDE 窗口未找到")
-            return {"ok": ok, "message": "已新建 Agent" if ok else "未找到 Cursor IDE 窗口"}
+            return {"ok": ok, "message": _("New Agent created") if ok else _("Cursor IDE window not found")}
         press_key_combo(key)
     except Exception as e:
         print(f"[key] error: {e}")
@@ -191,14 +197,24 @@ def create_app(get_url_state):
 
     @app.route("/config")
     def config():
+        import config_store
         state = get_url_state()
         return jsonify(
             {
                 "ws_port": state.get("http_port"),
                 "http_port": state.get("http_port"),
                 "url": state.get("url"),
+                "locale": config_store.LOCALE,
             }
         )
+
+    @app.route("/api/i18n")
+    def api_i18n():
+        import config_store
+        lang = request.args.get("lang") or config_store.LOCALE or "zh_CN"
+        if lang not in WEB_TRANSLATIONS:
+            lang = "zh_CN"
+        return jsonify(WEB_TRANSLATIONS[lang])
 
     @app.route("/api/screenshot")
     def api_screenshot():
@@ -216,7 +232,7 @@ def create_app(get_url_state):
         with CLIENT_LOCK:
             CLIENT_COUNT += 1
             c = CLIENT_COUNT
-        notify("手机已连接", f"连接数：{c}（端口:{PORT}）")
+        notify(_("Phone connected"), _("Connections: {c} (port:{port})").format(c=c, port=PORT))
         with WS_LOCK:
             WS_CLIENTS.add(ws)
         print(f"[ws] client connected, total={len(WS_CLIENTS)}")
@@ -304,7 +320,7 @@ def create_app(get_url_state):
             with CLIENT_LOCK:
                 CLIENT_COUNT -= 1
                 c = CLIENT_COUNT
-            notify("手机已断开", f"连接数：{c}")
+            notify(_("Phone disconnected"), _("Connections: {c}").format(c=c))
             print(f"[ws] client disconnected, total={len(WS_CLIENTS)}")
 
     return app

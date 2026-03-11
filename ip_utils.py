@@ -5,6 +5,7 @@ import socket
 import subprocess
 from typing import List, Optional, Tuple
 
+from i18n import _
 from settings import DEFAULT_HTTP_PORT, MAX_PORT_TRY
 
 
@@ -21,7 +22,7 @@ def choose_free_port(start_port: int) -> int:
     for p in range(start_port, start_port + MAX_PORT_TRY):
         if is_port_free(p):
             return p
-    raise RuntimeError(f"找不到可用端口（从 {start_port} 起尝试 {MAX_PORT_TRY} 个）")
+    raise RuntimeError(_("No port available (tried {start_port} to +{max})").format(start_port=start_port, max=MAX_PORT_TRY))
 
 
 def get_lan_ip_best_effort() -> str:
@@ -77,7 +78,7 @@ def parse_windows_ipconfig() -> List[Tuple[str, str]]:
         return []
 
     results: List[Tuple[str, str]] = []
-    current_iface = "未知网卡"
+    current_iface = _("Unknown adapter")
 
     iface_pat = re.compile(r"^\s*([^\r\n:]{3,}adapter\s+.+):\s*$", re.IGNORECASE)
     ipv4_pat = re.compile(r"IPv4.*?:\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)")
@@ -125,7 +126,7 @@ def get_ipv4_candidates() -> List[Tuple[str, str]]:
 
     ip2 = get_lan_ip_best_effort()
     if is_candidate_ipv4(ip2):
-        candidates.append((f"自动推荐（默认出口） - {ip2}", ip2))
+        candidates.append((_("Auto recommended (default) - {ip}").format(ip=ip2), ip2))
 
     seen = set()
     dedup: List[Tuple[str, str]] = []
@@ -135,7 +136,7 @@ def get_ipv4_candidates() -> List[Tuple[str, str]]:
             dedup.append((label, ip))
 
     if not dedup:
-        dedup = [("本机回环（仅本机可用） - 127.0.0.1", "127.0.0.1")]
+        dedup = [(_("Loopback (local only) - 127.0.0.1"), "127.0.0.1")]
     return dedup
 
 

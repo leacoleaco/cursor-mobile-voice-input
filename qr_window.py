@@ -10,6 +10,7 @@ from PIL import Image, ImageTk
 from tkinter import ttk
 
 import config_store
+from i18n import _
 
 
 class QRWindowManager:
@@ -66,6 +67,9 @@ class QRWindowManager:
         self.img_label = None
         self.url_label = None
         self.tip_label = None
+        self.lang_combo = None
+        self.lang_var = None
+        self._header_widgets = {}  # for refresh
 
         self.root.after(100, self._poll_queue)
         self.root.mainloop()
@@ -96,6 +100,9 @@ class QRWindowManager:
         self.top = None
         self.tk_img = None
         self.combo = None
+        self.lang_combo = None
+        self.lang_var = None
+        self._header_widgets = None
         self.img_label = None
         self.url_label = None
         self.tip_label = None
@@ -111,23 +118,36 @@ class QRWindowManager:
             return
 
         self.top = tk.Toplevel(self.root)
-        self.top.title("扫码打开语音输入网页")
+        self.top.title(_("Scan QR to open voice input page"))
         self.top.attributes("-topmost", True)
         self.top.protocol("WM_DELETE_WINDOW", self._close_window)
 
         header = ttk.Frame(self.top)
         header.pack(fill="x", padx=10, pady=(10, 6))
 
-        ttk.Label(header, text="选择网卡/IP：").pack(side="left")
+        self._header_widgets = {}
+        self._header_widgets["ip_label"] = ttk.Label(header, text=_("Select NIC/IP:"))
+        self._header_widgets["ip_label"].pack(side="left")
 
-        self.combo = ttk.Combobox(header, textvariable=self.ip_var, state="readonly", width=48)
+        self.combo = ttk.Combobox(header, textvariable=self.ip_var, state="readonly", width=40)
         self.combo.pack(side="left", padx=6, fill="x", expand=True)
 
-        btn_auto = ttk.Button(header, text="自动推荐", command=self._on_auto_ip)
-        btn_auto.pack(side="left", padx=(6, 0))
+        _lang_display = {"zh_CN": "中文", "en": "English"}
+        _lang_value = {"中文": "zh_CN", "English": "en"}
+        self._lang_display = _lang_display
+        self._lang_value = _lang_value
+        self.lang_var = tk.StringVar(value=_lang_display.get(config_store.LOCALE or "zh_CN", "中文"))
+        self.lang_combo = ttk.Combobox(header, textvariable=self.lang_var, values=["中文", "English"], state="readonly", width=8)
+        self.lang_combo.pack(side="left", padx=(0, 6))
+        self.lang_combo.bind("<<ComboboxSelected>>", lambda e: self._on_lang_changed())
 
-        btn_settings = ttk.Button(header, text="设置", command=self._show_settings)
+        btn_auto = ttk.Button(header, text=_("Auto recommended"), command=self._on_auto_ip)
+        btn_auto.pack(side="left", padx=(6, 0))
+        self._header_widgets["btn_auto"] = btn_auto
+
+        btn_settings = ttk.Button(header, text=_("Settings"), command=self._show_settings)
         btn_settings.pack(side="left", padx=(6, 0))
+        self._header_widgets["btn_settings"] = btn_settings
 
         self.combo.bind("<<ComboboxSelected>>", lambda e: self._on_ip_selected())
 
@@ -158,14 +178,17 @@ class QRWindowManager:
                 current = ""
 
         if not current:
+            auto_prefix = _("Auto recommended")
             for i, (lbl, _ip) in enumerate(self.ip_items):
-                if lbl.startswith("自动推荐"):
+                if lbl.startswith(auto_prefix):
                     idx = i
                     break
 
         if labels:
             self.combo.current(idx)
             self.ip_var.set(labels[idx])
+        if self.lang_var and self.lang_combo:
+            self.lang_var.set(self._lang_display.get(config_store.LOCALE or "zh_CN", "中文"))
 
     def _selected_ip(self) -> str:
         label = self.ip_var.get()
@@ -184,10 +207,31 @@ class QRWindowManager:
         self._reload_ip_list_and_select_current()
         self._refresh_qr_and_text()
 
+    def _on_lang_changed(self):
+        """Apply language change immediately."""
+        display = (self.lang_var.get() or "中文").strip()
+        locale = self._lang_value.get(display, "zh_CN")
+        config_store.LOCALE = locale
+        config_store.save_config()
+        from i18n import set_locale
+        set_locale(locale)
+        self._refresh_ui_text()
+
+    def _refresh_ui_text(self):
+        """Refresh all translatable text in the window."""
+        if not self.top or not self._header_widgets:
+            return
+        self.top.title(_("Scan QR to open voice input page"))
+        self._header_widgets["ip_label"].configure(text=_("Select NIC/IP:"))
+        self._header_widgets["btn_auto"].configure(text=_("Auto recommended"))
+        self._header_widgets["btn_settings"].configure(text=_("Settings"))
+        self._reload_ip_list_and_select_current()
+        self._refresh_qr_and_text()
+
     def _show_settings(self):
         """Open Ollama settings dialog."""
         dlg = tk.Toplevel(self.top if self.top else self.root)
-        dlg.title("Ollama 设置")
+        dlg.title(_("Ollama Settings"))
         dlg.transient(self.top if self.top else self.root)
         dlg.grab_set()
         dlg.resizable(False, False)
@@ -197,17 +241,17 @@ class QRWindowManager:
 
         # Enable checkbox
         var_enabled = tk.BooleanVar(value=config_store.LLM_ENABLED)
-        cb = ttk.Checkbutton(f, text="启用 Ollama 辅助判断命令", variable=var_enabled)
+        cb = ttk.Checkbutton(f, text=_("Enable Ollama for command matching"), variable=var_enabled)
         cb.pack(anchor="w", pady=(0, 10))
 
         # Base URL
-        ttk.Label(f, text="Ollama 地址：").pack(anchor="w")
+        ttk.Label(f, text=_("Ollama URL:")).pack(anchor="w")
         entry_url = ttk.Entry(f, width=42)
         entry_url.insert(0, config_store.LLM_BASE_URL or "http://127.0.0.1:11434")
         entry_url.pack(fill="x", pady=(2, 8))
 
         # Model
-        ttk.Label(f, text="模型：").pack(anchor="w")
+        ttk.Label(f, text=_("Model:")).pack(anchor="w")
         entry_model = ttk.Entry(f, width=42)
         entry_model.insert(0, config_store.LLM_MODEL or "qwen3.5:0.8b")
         entry_model.pack(fill="x", pady=(2, 12))
@@ -219,6 +263,8 @@ class QRWindowManager:
             config_store.LLM_BASE_URL = url
             config_store.LLM_MODEL = model
             config_store.save_config()
+            from i18n import set_locale
+            set_locale(locale)
             dlg.destroy()
 
         def on_cancel():
@@ -226,8 +272,8 @@ class QRWindowManager:
 
         btn_f = ttk.Frame(f)
         btn_f.pack(fill="x", pady=(4, 0))
-        ttk.Button(btn_f, text="确定", command=on_ok).pack(side="left", padx=(0, 6))
-        ttk.Button(btn_f, text="取消", command=on_cancel).pack(side="left")
+        ttk.Button(btn_f, text=_("OK"), command=on_ok).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_f, text=_("Cancel"), command=on_cancel).pack(side="left")
 
         dlg.update_idletasks()
         dlg.geometry(f"+{dlg.winfo_screenwidth()//2 - dlg.winfo_reqwidth()//2}+{dlg.winfo_screenheight()//2 - dlg.winfo_reqheight()//2}")
@@ -247,17 +293,17 @@ class QRWindowManager:
         self.url_label.configure(text=url)
 
         ip_show = self.get_effective_ip()
-        mode = "手动" if (self.get_user_ip() and self.get_user_ip().strip()) else "自动"
+        mode = _("Manual") if (self.get_user_ip() and self.get_user_ip().strip()) else _("Auto")
         http_port, ws_port = self.get_ports()
-        llm_line = f"LLM：{config_store.LLM_MODEL} (已启用)" if config_store.LLM_ENABLED else "LLM：未启用"
-        close_tip = "关闭此窗口将退出程序" if self.dev_mode else "关闭此窗口不影响后台运行"
+        llm_line = _("LLM: {model} (enabled)").format(model=config_store.LLM_MODEL) if config_store.LLM_ENABLED else _("LLM: disabled")
+        close_tip = _("Closing this window will exit the app") if self.dev_mode else _("Closing this window does not affect background running")
         self.tip_label.configure(
-            text=f"手机扫码打开网页（同一 WiFi / 同网段）\n"
-            f"模式：{mode}  IP：{ip_show}\n"
-            f"HTTP:{http_port}  WS:{ws_port}\n"
-            f"{llm_line}\n"
-            f"{close_tip}\n"
-            f"配置文件：{self.get_config_path()}"
+            text=_("Scan with phone to open page (same WiFi / same subnet)") + "\n"
+            + _("Mode: {mode}  IP: {ip}").format(mode=mode, ip=ip_show) + "\n"
+            + _("HTTP:{port}  WS:{port}").format(port=http_port) + "\n"
+            + llm_line + "\n"
+            + close_tip + "\n"
+            + _("Config file: {path}").format(path=self.get_config_path())
         )
 
     def _show_window(self):

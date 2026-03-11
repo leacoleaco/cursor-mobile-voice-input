@@ -30,6 +30,7 @@
   "llm_enabled": true,
   "llm_model": "qwen3.5:0.8b",
   "llm_base_url": "http://127.0.0.1:11434",
-  "access_token": "288f308360fe321a97da4c0a55c4f9c09c9706b6520a32c26e6bd5cb578a1208",
-  "auth_required": true
+  "access_token": "252f587a00059dd4de1eebd2be7df8d5378e508beca653ebbf9ed7af07761a4a",
+  "auth_required": true,
+  "locale": "en"
 }

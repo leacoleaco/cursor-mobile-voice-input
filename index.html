@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>局域网语音输入</title>
+  <title id="i18n-title">局域网语音输入</title>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no"/>
   <style>
     html, body { touch-action: manipulation; }
@@ -125,45 +125,49 @@
 <body>
   <div id="disconnectOverlay" class="disconnect-overlay">
     <div class="disconnect-dialog">
-      <h3 id="disconnectTitle">连接已断开</h3>
-      <p id="disconnectMsg">WebSocket 连接已断开，请点击下方按钮刷新页面重新连接。</p>
-      <button type="button" class="refresh-btn" id="disconnectRefreshBtn">🔄 刷新页面</button>
+      <h3 id="disconnectTitle" data-i18n="disconnectTitle">连接已断开</h3>
+      <p id="disconnectMsg" data-i18n="disconnectMsg">WebSocket 连接已断开，请点击下方按钮刷新页面重新连接。</p>
+      <button type="button" class="refresh-btn" id="disconnectRefreshBtn" data-i18n="refreshBtn">🔄 刷新页面</button>
     </div>
   </div>
   <div class="status-row log-row">
     <div id="log"></div>
-    <button id="clearBtn" class="action-btn">🧹 清空日志</button>
+    <select id="langSelect" class="action-btn" style="min-width:80px;padding:6px 10px;font-size:14px;">
+      <option value="zh_CN">中文</option>
+      <option value="en">English</option>
+    </select>
+    <button id="clearBtn" class="action-btn" data-i18n="clearLog">🧹 清空日志</button>
   </div>
-  <div class="hint">
+  <div class="hint" data-i18n="hint">
     ✅ 使用步骤:点击输入框 → 调起键盘 → 🎙语音输入
   </div>
   <div class="mode-row">
-    <button id="modeTextBtn" class="mode-btn active">✍ 文字</button>
-    <button id="modeCmdBtn" class="mode-btn">⚡ 命令</button>
-    <button id="modeMouseBtn" class="mode-btn">🖱 鼠标</button>
-    <button id="modeKeyboardBtn" class="mode-btn">⌨ 键盘</button>
+    <button id="modeTextBtn" class="mode-btn active" data-i18n="modeText">✍ 文字</button>
+    <button id="modeCmdBtn" class="mode-btn" data-i18n="modeCmd">⚡ 命令</button>
+    <button id="modeMouseBtn" class="mode-btn" data-i18n="modeMouse">🖱 鼠标</button>
+    <button id="modeKeyboardBtn" class="mode-btn" data-i18n="modeKeyboard">⌨ 键盘</button>
   </div>
   <div class="panel-text-cmd">
     <div class="input-box-wrap">
-      <textarea id="inputBox" class="disconnected" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
+      <textarea id="inputBox" class="disconnected" data-i18n-placeholder="placeholderText" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
       <button class="action-btn shortcut-coffee send-btn-float send-btn-float-top-left" data-key="@" title="@">@</button>
       <button class="action-btn send-btn-float send-btn-float-top-right" data-key="backspace" title="退格">⌫</button>
       <div class="send-buttons-row">
-        <button id="sendBtnLeft" class="action-btn">立即发送</button>
-        <button class="action-btn" data-key="shift+enter" title="Shift+Enter 换行">换行</button>
-        <button class="action-btn shortcut-coffee" data-key="enter" title="回车">↵ 回车</button>
-        <button id="sendBtn" class="action-btn">立即发送</button>
+        <button id="sendBtnLeft" class="action-btn" data-i18n="sendNow">立即发送</button>
+        <button class="action-btn" data-key="shift+enter" data-i18n="newline" title="Shift+Enter 换行">换行</button>
+        <button class="action-btn shortcut-coffee" data-key="enter" data-i18n="enter" title="回车">↵ 回车</button>
+        <button id="sendBtn" class="action-btn" data-i18n="sendNow">立即发送</button>
       </div>
     </div>
     <div class="action" style="margin-top: 10px;">
       <div class="send-mode-switch">
-        <span class="send-mode-label">自动发送</span>
+        <span class="send-mode-label" data-i18n="autoSend">自动发送</span>
         <label class="ios-switch">
           <input type="checkbox" id="sendModeManual" />
           <span class="ios-switch-track"></span>
           <span class="ios-switch-thumb"></span>
         </label>
-        <span class="send-mode-label">手动发送</span>
+        <span class="send-mode-label" data-i18n="manualSend">手动发送</span>
       </div>
     </div>
     <div class="shortcut-keys">
@@ -175,12 +179,12 @@
           <button class="shortcut-btn arrow-right" data-key="right" title="右">→</button>
         </div>
         <div class="shortcut-mouse-zone">
-          <div id="shortcutMouseTrackpad" class="shortcut-mouse-trackpad" title="鼠标区域：滑动移动光标 · 单击左键 · 长按右键"></div>
+          <div id="shortcutMouseTrackpad" class="shortcut-mouse-trackpad" data-i18n-title="mouseTrackpad" title="鼠标区域：滑动移动光标 · 单击左键 · 长按右键"></div>
         </div>
       </div>
       <div class="shortcut-row">
-        <button class="shortcut-btn" data-key="ctrl+i" title="跳转 cursor 输入框 (Ctrl+I)">跳转cursor 输入框</button>
-        <button class="shortcut-btn" data-key="ctrl+n" title="新建 Agent (Ctrl+N)">新建 Agent</button>
+        <button class="shortcut-btn" data-key="ctrl+i" data-i18n="shortcutCursor" title="跳转 cursor 输入框 (Ctrl+I)">跳转cursor 输入框</button>
+        <button class="shortcut-btn" data-key="ctrl+n" data-i18n="shortcutAgent" title="新建 Agent (Ctrl+N)">新建 Agent</button>
       </div>
     </div>
   </div>
@@ -274,11 +278,11 @@
     </div>
   </div>
   <div class="panel-mouse">
-    <div class="hint">滑动触控板移动光标，单击左键，长按右键，双指上下滑动滚动</div>
+    <div class="hint" data-i18n="mouseHint">滑动触控板移动光标，单击左键，长按右键，双指上下滑动滚动</div>
     <div class="actions" style="margin-top: 8px;">
-      <button id="mouseRightBtn" class="action-btn">🖱 右键</button>
-      <button id="mouseScrollUpBtn" class="action-btn">⬆ 滚轮上</button>
-      <button id="mouseScrollDownBtn" class="action-btn">⬇ 滚轮下</button>
+      <button id="mouseRightBtn" class="action-btn" data-i18n="rightClick">🖱 右键</button>
+      <button id="mouseScrollUpBtn" class="action-btn" data-i18n="scrollUp">⬆ 滚轮上</button>
+      <button id="mouseScrollDownBtn" class="action-btn" data-i18n="scrollDown">⬇ 滚轮下</button>
     </div>
     <div id="mouseTrackpad" class="mouse-trackpad-wrap"></div>
   </div>
@@ -286,11 +290,11 @@
   <div id="llmStream" class=""></div>
   <div id="clipboardPanel" class="clipboard-panel">
     <div class="clipboard-header">
-      <button id="clipboardCopyBtn" class="clip-btn" aria-label="复制服务器剪贴板">📋 复制</button>
+      <button id="clipboardCopyBtn" class="clip-btn" data-i18n="clipboardCopy" aria-label="复制服务器剪贴板">📋 复制</button>
       <div id="clipboardClose" class="clip-close" aria-label="关闭">×</div>
     </div>
     <div id="clipboardText" class="clipboard-text"></div>
-    <div class="clipboard-hint">点击标题按钮即可复制，关闭后等待下一次推送自动再显示</div>
+    <div class="clipboard-hint" data-i18n="clipboardHint">点击标题按钮即可复制，关闭后等待下一次推送自动再显示</div>
   </div>
 
 <script>
@@ -303,6 +307,67 @@ let sendMode = "auto"; // "auto" | "manual" - default auto
 let lastSentText = "";
 let lastSentMsg = "";
 let lastSentTime = 0;
+
+// i18n
+let T = {};
+let currentLang = "zh_CN";
+function t(key){ return T[key] != null ? T[key] : key; }
+function applyI18n(){
+  document.querySelectorAll("[data-i18n]").forEach(el=>{
+    const k = el.getAttribute("data-i18n");
+    if(k && T[k]) el.textContent = T[k];
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(el=>{
+    const k = el.getAttribute("data-i18n-placeholder");
+    if(k && T[k]) el.placeholder = T[k];
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach(el=>{
+    const k = el.getAttribute("data-i18n-title");
+    if(k && T[k]) el.title = T[k];
+  });
+  const titleEl = document.getElementById("i18n-title");
+  if(titleEl && T.title) titleEl.textContent = T.title;
+  const langSel = document.getElementById("langSelect");
+  if(langSel) langSel.value = currentLang;
+}
+async function loadI18n(){
+  const params = new URLSearchParams(location.search);
+  let lang = params.get("lang") || (typeof localStorage !== "undefined" ? localStorage.getItem("lang") : null);
+  if(!lang){
+    try{
+      const token = params.get("token");
+      const cfgUrl = token ? `/config?token=${encodeURIComponent(token)}` : "/config";
+      const r = await fetch(cfgUrl);
+      if(r.ok){ const c = await r.json(); lang = c.locale || "zh_CN"; }
+    }catch(e){}
+  }
+  if(!lang) lang = "zh_CN";
+  currentLang = lang;
+  try{
+    const token = params.get("token");
+    const url = token ? `/api/i18n?lang=${encodeURIComponent(lang)}&token=${encodeURIComponent(token)}` : `/api/i18n?lang=${encodeURIComponent(lang)}`;
+    const r = await fetch(url);
+    if(r.ok) T = await r.json();
+  }catch(e){}
+  applyI18n();
+}
+document.getElementById("langSelect")?.addEventListener("change", async (e)=>{
+  const lang = e.target.value;
+  currentLang = lang;
+  try{
+    const params = new URLSearchParams(location.search);
+    const token = params.get("token");
+    const url = token ? `/api/i18n?lang=${encodeURIComponent(lang)}&token=${encodeURIComponent(token)}` : `/api/i18n?lang=${encodeURIComponent(lang)}`;
+    const r = await fetch(url);
+    if(r.ok){
+      T = await r.json();
+      applyI18n();
+      if(typeof localStorage !== "undefined") localStorage.setItem("lang", lang);
+      params.set("lang", lang);
+      history.replaceState(null, "", location.pathname + "?" + params.toString());
+    }
+  }catch(err){}
+});
 const DUP_WINDOW_MS = 1500;
 const LOG_MAX_LINES = 80;
 const clipboardPanel = document.getElementById("clipboardPanel");
@@ -336,13 +401,13 @@ function showDisconnectOverlay(isAuthOrConnectFailed){
   const btn = document.getElementById("disconnectRefreshBtn");
   if(el){
     if(isAuthOrConnectFailed){
-      if(title) title.textContent = "⚠️ 权限不正确";
-      if(msg) msg.textContent = "请重新扫码再试";
-      if(btn) btn.textContent = "我知道了";
+      if(title) title.textContent = t("authError");
+      if(msg) msg.textContent = t("authMsg");
+      if(btn) btn.textContent = t("iUnderstand");
     } else {
-      if(title) title.textContent = "连接已断开";
-      if(msg) msg.textContent = "WebSocket 连接已断开，请点击下方按钮刷新页面重新连接。";
-      if(btn) btn.textContent = "🔄 刷新页面";
+      if(title) title.textContent = t("disconnectTitle");
+      if(msg) msg.textContent = t("disconnectMsg");
+      if(btn) btn.textContent = t("refreshBtn");
     }
     el.classList.add("show");
   }
@@ -364,11 +429,11 @@ function setMode(mode){
   document.body.classList.toggle("mode-keyboard", mode === "keyboard");
   const inputBox = document.getElementById("inputBox");
   if(mode === "cmd"){
-    inputBox.placeholder = "可以输入 比如 清空输入框、修改某个字到某个字 这种说法";
+    inputBox.placeholder = t("placeholderCmd");
   }else if(mode === "text"){
-    inputBox.placeholder = "点击这里调起输入法（推荐用手机键盘语音输入）";
+    inputBox.placeholder = t("placeholderText");
   }
-  log("✅ 切换模式：" + (mode === "text" ? "文字" : mode === "cmd" ? "命令" : mode === "mouse" ? "鼠标" : "键盘"));
+  log(t("switchMode") + (mode === "text" ? t("modeTextLabel") : mode === "cmd" ? t("modeCmdLabel") : mode === "mouse" ? t("modeMouseLabel") : t("modeKeyboardLabel")));
   if(mode === "text" || mode === "cmd") {
     const doFocus = () => {
       inputBox.focus();
@@ -393,19 +458,19 @@ async function connectWS(){
 
   ws.onopen = () => {
     wsEverConnected = true;
-    log("✅ 已连接到：" + wsUrl);
+    log(t("connected") + wsUrl);
     updateConnectionUI();
     hideDisconnectOverlay();
   };
 
   ws.onclose = () => {
-    log("❌ 连接断开");
+    log(t("disconnected"));
     updateConnectionUI();
     showDisconnectOverlay(!wsEverConnected);
   };
 
   ws.onerror = () => {
-    log("❌ WebSocket 错误");
+    log(t("disconnected"));
     updateConnectionUI();
     showDisconnectOverlay(!wsEverConnected);
   };
@@ -418,7 +483,7 @@ async function connectWS(){
       return;
     }
     llmStreamEl.classList.add("active");
-    llmStreamEl.textContent = "🤖 大模型输出：" + text;
+    llmStreamEl.textContent = t("llmOutput") + text;
   }
 
   ws.onmessage = (event) => {
@@ -427,7 +492,7 @@ async function connectWS(){
       if(data && data.type === "cmd_progress"){
         const step = data.step || "";
         const msg = data.message || "";
-        if(step === "llm_judging"){ showLlmStream("正在用 LLM 判断..."); log("🤖 " + msg); }
+        if(step === "llm_judging"){ showLlmStream(t("llmJudging")); log("🤖 " + msg); }
         else if(step === "llm_stream") showLlmStream(msg);
         else if(step === "matched"){ showLlmStream(""); log("✓ " + msg); }
         else if(step === "executing"){ showLlmStream(""); log("▶ " + msg); }
@@ -437,24 +502,27 @@ async function connectWS(){
         else{ showLlmStream(""); log("ℹ " + msg); }
       }else if(data && data.type === "cmd_result"){
         showLlmStream("");
-        log("✅ 命令结果：" + data.message);
+        log(t("cmdResult") + data.message);
       }else if(data && data.type === "key_result"){
-        log(data.ok ? "✅ " + (data.message || "已定位 Cursor 输入框") : "⚠️ " + (data.message || "未找到 Cursor IDE 窗口"));
+        log(data.ok ? "✅ " + (data.message || t("cursorFocused")) : "⚠️ " + (data.message || t("cursorNotFound")));
       }else if(data && data.type === "clipboard"){
         showClipboard(data.string || "");
-        log("🧲 收到服务器推送的剪贴板内容");
+        log(t("clipboardReceived"));
         if((data.string || "").trim()){
           const preview = data.string.length > 80 ? data.string.slice(0,80) + "..." : data.string;
           log("📥 剪贴板预览：" + preview);
         }
       }
     }catch(e){
-      log("⚠️ 非 JSON 消息或解析失败：" + e);
+      log(t("invalidJson") + e);
     }
   };
 }
-connectWS();
-updateConnectionUI();
+(async function init(){
+  await loadI18n();
+  connectWS();
+  updateConnectionUI();
+})();
 
 (function(){
   const btn = document.getElementById("disconnectRefreshBtn");
@@ -463,12 +531,12 @@ updateConnectionUI();
     e.preventDefault();
     e.stopPropagation();
     const title = document.getElementById("disconnectTitle");
-    if(title && title.textContent.indexOf("权限不正确") >= 0){
-      alert("请关闭此页面，使用最新二维码重新扫码");
+    if(title && title.textContent.indexOf("权限") >= 0){
+      alert(t("closeAndScan"));
       return;
     }
     btn.disabled = true;
-    btn.textContent = "正在刷新...";
+    btn.textContent = t("refreshing");
     location.reload();
   };
   btn.addEventListener("pointerdown", doRefresh);
@@ -486,7 +554,7 @@ function sendText(text, replace){
   const now = Date.now();
   const dedupKey = currentMode + "::" + (replace ? "sync::" : "") + text;
   if(dedupKey === lastSentMsg && (now - lastSentTime) < DUP_WINDOW_MS){
-    log("⏭️ 去重：短时间相同内容不发送 -> " + (text.length > 30 ? text.slice(0,30) + "..." : text));
+    log(t("dedup") + (text.length > 30 ? text.slice(0,30) + "..." : text));
     return;
   }
   lastSentMsg = dedupKey;
@@ -495,9 +563,9 @@ function sendText(text, replace){
   if(ws && ws.readyState === 1){
     const payload = { type: replace ? "text" : currentMode, string: text, replace: !!replace };
     ws.send(JSON.stringify(payload));
-    log("📤 发送(" + (replace ? "同步" : currentMode === "text" ? "文字" : "命令") + ")：" + (text.length > 50 ? text.slice(0,50) + "..." : text));
+    log(t("sent") + (replace ? t("sync") : currentMode === "text" ? t("text") : t("cmd")) + ")：" + (text.length > 50 ? text.slice(0,50) + "..." : text));
   } else {
-    log("⚠️ 未连接 WebSocket，无法发送");
+    log(t("wsNotConnected"));
   }
 }
 
@@ -508,7 +576,7 @@ function setSendMode(mode){
   if(cb) cb.checked = (mode === "manual");
   const clearInputBtn = document.getElementById("clearInputBtn");
   if(clearInputBtn) clearInputBtn.style.display = (mode === "manual" ? "" : "none");
-  log("✅ 发送模式：" + (mode === "auto" ? "自动发送" : "手动发送"));
+  log(t("sendMode") + (mode === "auto" ? t("autoSendLabel") : t("manualSendLabel")));
 }
 
 document.getElementById("sendModeManual").addEventListener("change", (e) => {
@@ -554,7 +622,7 @@ document.getElementById("clearBtn").onclick = () => {
 clipboardCopyBtn.onclick = async () => {
   const text = clipboardText.textContent || "";
   if(!text.trim()){
-    log("ℹ️ 没有可复制的服务器剪贴板内容");
+    log(t("noClipboard"));
     return;
   }
   try{
@@ -569,9 +637,9 @@ clipboardCopyBtn.onclick = async () => {
       document.execCommand("copy");
       sel.removeAllRanges();
     }
-    log("✅ 已复制服务器剪贴板内容");
+    log(t("clipboardCopied"));
   }catch(e){
-    log("⚠️ 复制失败：" + e);
+    log(t("copyFailed") + e);
   }
 };
 
@@ -630,7 +698,7 @@ function buildKeyString(key) {
 
 function sendVKey(keyStr) {
   if (!ws || ws.readyState !== 1) {
-    log("⚠️ 未连接 WebSocket，无法发送按键");
+    log(t("wsKeyError"));
     return;
   }
   ws.send(JSON.stringify({ type: "key", key: keyStr }));
@@ -647,7 +715,7 @@ document.querySelectorAll("#vkeyboardPanel .vkey").forEach(btn => {
       vkModifiers[mod] = !vkModifiers[mod];
       document.querySelectorAll("#vkeyboardPanel .vkey[data-mod=\"" + mod + "\"]").forEach(b => b.classList.toggle("active", vkModifiers[mod]));
       updateVKeyLabels();
-      log("⌨ " + mod + " " + (vkModifiers[mod] ? "已按下" : "已释放"));
+      log("⌨ " + mod + " " + (vkModifiers[mod] ? t("vkeyPressed") : t("vkeyReleased")));
     } else if (key !== null) {
       const keyStr = buildKeyString(key);
       sendVKey(keyStr);
@@ -660,7 +728,7 @@ document.querySelectorAll(".shortcut-btn, button[data-key]").forEach(btn => {
   btn.onclick = () => {
     const key = btn.getAttribute("data-key");
     if (!key || !ws || ws.readyState !== 1) {
-      if (!ws || ws.readyState !== 1) log("⚠️ 未连接 WebSocket，无法发送按键");
+      if (!ws || ws.readyState !== 1) log(t("wsKeyError"));
       return;
     }
     // 回车按钮在输入框区域：有文本时先立即发送，再发送回车
@@ -669,7 +737,7 @@ document.querySelectorAll(".shortcut-btn, button[data-key]").forEach(btn => {
       doSend();
     }
     ws.send(JSON.stringify({ type: "key", key }));
-    const keyLabel = key === "@" ? "@" : key === "enter" ? "回车" : key === "backspace" ? "退格" : key === "ctrl+i" ? "跳转 cursor 输入框" : key === "ctrl+n" ? "新建 Agent" : key;
+    const keyLabel = key === "@" ? "@" : key === "enter" ? t("enter") : key === "backspace" ? "⌫" : key === "ctrl+i" ? t("shortcutCursor") : key === "ctrl+n" ? t("shortcutAgent") : key;
     log("⌨️ 发送按键：" + keyLabel);
   };
 });
@@ -684,7 +752,7 @@ const SCROLL_SENSITIVITY = 80;
 
 function sendMouseAction(action, x, y, delta, dx, dy){
   if(!ws || ws.readyState !== 1){
-    log("⚠️ 未连接 WebSocket，无法发送鼠标指令");
+    log(t("wsNotConnected"));
     return;
   }
   const payload = { type: "mouse", action };
@@ -758,7 +826,7 @@ function onTrackpadPointerDown(clientX, clientY, isRightButton, el){
   trackpadAccumDy = 0;
   if(isRightButton){
     sendMouseAction("right_click");
-    log("🖱 右键点击");
+    log(t("rightClickLog"));
     return;
   }
   trackpadLongPressTimer = setTimeout(() => {
@@ -808,10 +876,10 @@ function onTrackpadPointerUp(){
   const wasTap = trackpadTotalMove <= TAP_MAX_MOVE && !trackpadIsLongPress;
   if(wasTap && trackpadDownX !== null){
     sendMouseAction("left_click");
-    log("🖱 左键点击");
+    log(t("leftClickLog"));
   }else if(trackpadIsLongPress){
     sendMouseAction("right_click");
-    log("🖱 右键点击（长按）");
+    log(t("rightClickLongLog"));
   }
   trackpadLastX = null;
   trackpadLastY = null;
@@ -864,17 +932,17 @@ setupTrackpadOnElement(document.getElementById("shortcutMouseTrackpad"));
 
 document.getElementById("mouseRightBtn").onclick = () => {
   sendMouseAction("right_click");
-  log("🖱 右键点击");
+  log(t("rightClickLog"));
 };
 
 document.getElementById("mouseScrollUpBtn").onclick = () => {
   sendMouseAction("scroll", null, null, SCROLL_SENSITIVITY);
-  log("🖱 滚轮向上");
+  log(t("scrollUpLog"));
 };
 
 document.getElementById("mouseScrollDownBtn").onclick = () => {
   sendMouseAction("scroll", null, null, -SCROLL_SENSITIVITY);
-  log("🖱 滚轮向下");
+  log(t("scrollDownLog"));
 };
 
 const box = document.getElementById("inputBox");
@@ -908,19 +976,19 @@ function autoSendAfterIdle(){
   sendText(current, false);
   box.value = "";
   lastSentText = "";
-  log("📤 自动发送（1秒无输入）");
+  log(t("autoSent"));
 }
 
 function showClipboard(content){
   const text = (content || "").trim();
   if(!text){
     clipboardPanel.style.display = "none";
-    log("ℹ️ 收到空剪贴板内容，隐藏面板");
+    log(t("emptyClipboard"));
     return;
   }
   clipboardText.textContent = text;
   clipboardPanel.style.display = "block";
-  log("📌 剪贴板面板已显示，可长按复制");
+  log(t("clipboardShown"));
 }
 
 clipboardClose.onclick = () => {

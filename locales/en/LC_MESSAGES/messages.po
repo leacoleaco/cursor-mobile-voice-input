@@ -1,0 +1,257 @@
+# English - source language (msgstr = msgid)
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: en\n"
+
+msgid "Scan QR to open voice input page"
+msgstr "Scan QR to open voice input page"
+
+msgid "Select NIC/IP:"
+msgstr "Select NIC/IP:"
+
+msgid "Auto recommended"
+msgstr "Auto recommended"
+
+msgid "Settings"
+msgstr "Settings"
+
+msgid "Ollama Settings"
+msgstr "Ollama Settings"
+
+msgid "Enable Ollama for command matching"
+msgstr "Enable Ollama for command matching"
+
+msgid "Ollama URL:"
+msgstr "Ollama URL:"
+
+msgid "Model:"
+msgstr "Model:"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Manual"
+msgstr "Manual"
+
+msgid "Auto"
+msgstr "Auto"
+
+msgid "LLM: {model} (enabled)"
+msgstr "LLM: {model} (enabled)"
+
+msgid "LLM: disabled"
+msgstr "LLM: disabled"
+
+msgid "Closing this window will exit the app"
+msgstr "Closing this window will exit the app"
+
+msgid "Closing this window does not affect background running"
+msgstr "Closing this window does not affect background running"
+
+msgid "Scan with phone to open page (same WiFi / same subnet)"
+msgstr "Scan with phone to open page (same WiFi / same subnet)"
+
+msgid "Mode: {mode}  IP: {ip}"
+msgstr "Mode: {mode}  IP: {ip}"
+
+msgid "HTTP:{port}  WS:{port}"
+msgstr "HTTP:{port}  WS:{port}"
+
+msgid "Config file: {path}"
+msgstr "Config file: {path}"
+
+msgid "Clipboard empty or unreadable"
+msgstr "Clipboard empty or unreadable"
+
+msgid "Clipboard sent"
+msgstr "Clipboard sent"
+
+msgid "Sent to web page, copy on mobile"
+msgstr "Sent to web page, copy on mobile"
+
+msgid "Clipboard send failed"
+msgstr "Clipboard send failed"
+
+msgid "WebSocket not running or no connection"
+msgstr "WebSocket not running or no connection"
+
+msgid "Quit"
+msgstr "Quit"
+
+msgid "LAN Voice Input has exited"
+msgstr "LAN Voice Input has exited"
+
+msgid "Send clipboard to web page"
+msgstr "Send clipboard to web page"
+
+msgid "Show QR code"
+msgstr "Show QR code"
+
+msgid "Started"
+msgstr "Started"
+
+msgid "Open on phone:"
+msgstr "Open on phone:"
+
+msgid "Port:"
+msgstr "Port:"
+
+msgid "LLM assist:"
+msgstr "LLM assist:"
+
+msgid "LLM model preloaded"
+msgstr "LLM model preloaded"
+
+msgid "LLM preload skipped"
+msgstr "LLM preload skipped"
+
+msgid "CursorMobileVoiceInput started"
+msgstr "CursorMobileVoiceInput started"
+
+msgid "Port:{port} (HTTP+WS)\nClick tray to send clipboard\nRight-click tray for QR"
+msgstr "Port:{port} (HTTP+WS)\nClick tray to send clipboard\nRight-click tray for QR"
+
+msgid "Permission error"
+msgstr "Permission error"
+
+msgid "Invalid permission"
+msgstr "Invalid permission"
+
+msgid "Please scan again"
+msgstr "Please scan again"
+
+msgid "I understand"
+msgstr "I understand"
+
+msgid "Close this page and scan the latest QR code"
+msgstr "Close this page and scan the latest QR code"
+
+msgid "Cursor input focused"
+msgstr "Cursor input focused"
+
+msgid "Cursor IDE window not found"
+msgstr "Cursor IDE window not found"
+
+msgid "New Agent created"
+msgstr "New Agent created"
+
+msgid "Phone connected"
+msgstr "Phone connected"
+
+msgid "Connections: {c} (port:{port})"
+msgstr "Connections: {c} (port:{port})"
+
+msgid "Phone disconnected"
+msgstr "Phone disconnected"
+
+msgid "Connections: {c}"
+msgstr "Connections: {c}"
+
+msgid "Paused"
+msgstr "Paused"
+
+msgid "Resumed"
+msgstr "Resumed"
+
+msgid "Paused - {text}"
+msgstr "Paused - {text}"
+
+msgid "Newline"
+msgstr "Newline"
+
+msgid "Nothing to delete"
+msgstr "Nothing to delete"
+
+msgid "Deleted last sentence: {last}"
+msgstr "Deleted last sentence: {last}"
+
+msgid "Deleted {n} characters"
+msgstr "Deleted {n} characters"
+
+msgid "Cleared"
+msgstr "Cleared"
+
+msgid "Command config error"
+msgstr "Command config error"
+
+msgid "Command executed successfully"
+msgstr "Command executed successfully"
+
+msgid "Command execution failed"
+msgstr "Command execution failed"
+
+msgid "Command execution error"
+msgstr "Command execution error"
+
+msgid "Command not found"
+msgstr "Command not found"
+
+msgid "No matching command"
+msgstr "No matching command"
+
+msgid "No commands available"
+msgstr "No commands available"
+
+msgid "Matched: {ms}"
+msgstr "Matched: {ms}"
+
+msgid "LLM error: {e}"
+msgstr "LLM error: {e}"
+
+msgid "No command matched"
+msgstr "No command matched"
+
+msgid "Executing: {resolved}"
+msgstr "Executing: {resolved}"
+
+msgid "Paused - sync"
+msgstr "Paused - sync"
+
+msgid "Test inject"
+msgstr "Test inject"
+
+msgid "Place cursor in Notepad, injecting test text..."
+msgstr "Place cursor in Notepad, injecting test text..."
+
+msgid "If you see this, SendInput succeeded!"
+msgstr "If you see this, SendInput succeeded!"
+
+msgid "Test inject success"
+msgstr "Test inject success"
+
+msgid "Check if two lines appear in Notepad"
+msgstr "Check if two lines appear in Notepad."
+
+msgid "Test inject failed"
+msgstr "Test inject failed"
+
+msgid "Command execution"
+msgstr "Command execution"
+
+msgid "Thinking..."
+msgstr "Thinking..."
+
+msgid "Ollama unavailable"
+msgstr "Ollama unavailable"
+
+msgid "Using LLM to judge..."
+msgstr "Using LLM to judge..."
+
+msgid "No port available (tried {start_port} to +{max})"
+msgstr "No port available (tried {start_port} to +{max})"
+
+msgid "Unknown adapter"
+msgstr "Unknown adapter"
+
+msgid "Auto recommended (default) - {ip}"
+msgstr "Auto recommended (default) - {ip}"
+
+msgid "Loopback (local only) - 127.0.0.1"
+msgstr "Loopback (local only) - 127.0.0.1"
+
+msgid "Language"
+msgstr "Language"

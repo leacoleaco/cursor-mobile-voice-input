@@ -1,0 +1,257 @@
+# Chinese (Simplified) - translations
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: zh_CN\n"
+
+msgid "Scan QR to open voice input page"
+msgstr "扫码打开语音输入网页"
+
+msgid "Select NIC/IP:"
+msgstr "选择网卡/IP："
+
+msgid "Auto recommended"
+msgstr "自动推荐"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Ollama Settings"
+msgstr "Ollama 设置"
+
+msgid "Enable Ollama for command matching"
+msgstr "启用 Ollama 辅助判断命令"
+
+msgid "Ollama URL:"
+msgstr "Ollama 地址："
+
+msgid "Model:"
+msgstr "模型："
+
+msgid "OK"
+msgstr "确定"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Manual"
+msgstr "手动"
+
+msgid "Auto"
+msgstr "自动"
+
+msgid "LLM: {model} (enabled)"
+msgstr "LLM：{model} (已启用)"
+
+msgid "LLM: disabled"
+msgstr "LLM：未启用"
+
+msgid "Closing this window will exit the app"
+msgstr "关闭此窗口将退出程序"
+
+msgid "Closing this window does not affect background running"
+msgstr "关闭此窗口不影响后台运行"
+
+msgid "Scan with phone to open page (same WiFi / same subnet)"
+msgstr "手机扫码打开网页（同一 WiFi / 同网段）"
+
+msgid "Mode: {mode}  IP: {ip}"
+msgstr "模式：{mode}  IP：{ip}"
+
+msgid "HTTP:{port}  WS:{port}"
+msgstr "HTTP:{port}  WS:{port}"
+
+msgid "Config file: {path}"
+msgstr "配置文件：{path}"
+
+msgid "Clipboard empty or unreadable"
+msgstr "剪贴板为空或无法读取"
+
+msgid "Clipboard sent"
+msgstr "剪贴板发送"
+
+msgid "Sent to web page, copy on mobile"
+msgstr "已发送到网页，可在手机端复制"
+
+msgid "Clipboard send failed"
+msgstr "剪贴板发送失败"
+
+msgid "WebSocket not running or no connection"
+msgstr "WebSocket 未运行或无连接"
+
+msgid "Quit"
+msgstr "退出"
+
+msgid "LAN Voice Input has exited"
+msgstr "LAN Voice Input 已退出"
+
+msgid "Send clipboard to web page"
+msgstr "发送剪贴板到网页"
+
+msgid "Show QR code"
+msgstr "显示二维码"
+
+msgid "Started"
+msgstr "已启动"
+
+msgid "Open on phone:"
+msgstr "手机打开："
+
+msgid "Port:"
+msgstr "端口:"
+
+msgid "LLM assist:"
+msgstr "LLM 辅助:"
+
+msgid "LLM model preloaded"
+msgstr "LLM 模型已预加载"
+
+msgid "LLM preload skipped"
+msgstr "LLM 预加载跳过"
+
+msgid "CursorMobileVoiceInput started"
+msgstr "CursorMobileVoiceInput 启动成功"
+
+msgid "Port:{port} (HTTP+WS)\nClick tray to send clipboard\nRight-click tray for QR"
+msgstr "端口:{port} (HTTP+WS)\n单击托盘图标快速发送剪贴板到网页\n右键托盘菜单可显示二维码"
+
+msgid "Permission error"
+msgstr "权限错误"
+
+msgid "Invalid permission"
+msgstr "权限不正确"
+
+msgid "Please scan again"
+msgstr "请重新扫码再试"
+
+msgid "I understand"
+msgstr "我知道了"
+
+msgid "Close this page and scan the latest QR code"
+msgstr "请关闭此页面，使用最新二维码重新扫码"
+
+msgid "Cursor input focused"
+msgstr "已定位 Cursor 输入框"
+
+msgid "Cursor IDE window not found"
+msgstr "未找到 Cursor IDE 窗口"
+
+msgid "New Agent created"
+msgstr "已新建 Agent"
+
+msgid "Phone connected"
+msgstr "手机已连接"
+
+msgid "Connections: {c} (port:{port})"
+msgstr "连接数：{c}（端口:{port}）"
+
+msgid "Phone disconnected"
+msgstr "手机已断开"
+
+msgid "Connections: {c}"
+msgstr "连接数：{c}"
+
+msgid "Paused"
+msgstr "已暂停输入"
+
+msgid "Resumed"
+msgstr "已恢复输入"
+
+msgid "Paused - {text}"
+msgstr "⏸(暂停中) {text}"
+
+msgid "Newline"
+msgstr "换行"
+
+msgid "Nothing to delete"
+msgstr "没有可删除的内容"
+
+msgid "Deleted last sentence: {last}"
+msgstr "删除上一句：{last}"
+
+msgid "Deleted {n} characters"
+msgstr "删除 {n} 个字"
+
+msgid "Cleared"
+msgstr "清空"
+
+msgid "Command config error"
+msgstr "命令配置错误"
+
+msgid "Command executed successfully"
+msgstr "指令执行成功"
+
+msgid "Command execution failed"
+msgstr "指令执行失败"
+
+msgid "Command execution error"
+msgstr "指令执行异常"
+
+msgid "Command not found"
+msgstr "未找到指令"
+
+msgid "No matching command"
+msgstr "未找到匹配指令"
+
+msgid "No commands available"
+msgstr "无可用指令"
+
+msgid "Matched: {ms}"
+msgstr "匹配到：{ms}"
+
+msgid "LLM error: {e}"
+msgstr "LLM 异常：{e}"
+
+msgid "No command matched"
+msgstr "未匹配到指令"
+
+msgid "Executing: {resolved}"
+msgstr "执行：{resolved}"
+
+msgid "Paused - sync"
+msgstr "⏸(暂停中) 同步"
+
+msgid "Test inject"
+msgstr "测试注入"
+
+msgid "Place cursor in Notepad, injecting test text..."
+msgstr "请将鼠标放在记事本输入区，正在注入测试文本…"
+
+msgid "If you see this, SendInput succeeded!"
+msgstr "如果你看到这行文字，说明 SendInput 注入成功！"
+
+msgid "Test inject success"
+msgstr "测试注入成功"
+
+msgid "Check if two lines appear in Notepad"
+msgstr "请查看记事本是否出现两行测试文本。"
+
+msgid "Test inject failed"
+msgstr "测试注入失败"
+
+msgid "Command execution"
+msgstr "指令执行"
+
+msgid "Thinking..."
+msgstr "思考中…"
+
+msgid "Ollama unavailable"
+msgstr "Ollama 不可用"
+
+msgid "Using LLM to judge..."
+msgstr "正在用 LLM 判断..."
+
+msgid "No port available (tried {start_port} to +{max})"
+msgstr "找不到可用端口（从 {start_port} 起尝试 {max} 个）"
+
+msgid "Unknown adapter"
+msgstr "未知网卡"
+
+msgid "Auto recommended (default) - {ip}"
+msgstr "自动推荐（默认出口） - {ip}"
+
+msgid "Loopback (local only) - 127.0.0.1"
+msgstr "本机回环（仅本机可用） - 127.0.0.1"
+
+msgid "Language"
+msgstr "语言"

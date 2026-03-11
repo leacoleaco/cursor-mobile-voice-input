@@ -10,6 +10,8 @@ import urllib.request
 import urllib.error
 from typing import Callable, List, Optional
 
+from i18n import _
+
 _ollama_available: Optional[bool] = None
 _ollama_base_url: Optional[str] = None
 
@@ -105,7 +107,7 @@ def _parse_stream_response(resp, on_stream: Optional[Callable[[str], None]] = No
                 thinking_parts.append(thinking)
                 # Show progress while reasoning (qwen3.5 etc.)
                 full = "".join(thinking_parts)
-                _emit("思考中…" + (full[-30:] if len(full) > 30 else full))
+                _emit(_("Thinking...") + (full[-30:] if len(full) > 30 else full))
 
             if obj.get("done"):
                 return "".join(content_parts).strip()
@@ -235,10 +237,10 @@ def resolve_command_with_progress(
                 pass
 
     if not _check_ollama(base_url):
-        _emit("error", "Ollama 不可用")
+        _emit("error", _("Ollama unavailable"))
         return None
 
-    _emit("llm_judging", "正在用 LLM 判断...")
+    _emit("llm_judging", _("Using LLM to judge..."))
 
     prompt = f"""用户说了：「{user_text}」
 以下是指令列表（每行一个）：
@@ -261,9 +263,9 @@ def resolve_command_with_progress(
     t.join(timeout=timeout)
 
     if result[0]:
-        _emit("matched", f"匹配到：{result[0]}")
+        _emit("matched", _("Matched: {ms}").format(ms=result[0]))
     else:
-        _emit("no_match", "未匹配到指令")
+        _emit("no_match", _("No command matched"))
     return result[0]
 
 

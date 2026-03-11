@@ -6,3 +6,4 @@ qrcode==7.4.2
 Pillow==10.2.0
 pystray==0.19.5
 winotify==1.1.0
+python-gettext==5.0
