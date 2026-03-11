@@ -147,15 +147,24 @@ def get_effective_ip(user_ip: Optional[str]) -> str:
     return get_lan_ip_best_effort()
 
 
-def build_urls(ip: str, http_port: int, ws_port: int = None, token: Optional[str] = None):
+def build_urls(
+    ip: str,
+    http_port: int,
+    ws_port: int = None,
+    token: Optional[str] = None,
+    locale: Optional[str] = None,
+):
     """Build URLs. ws_port defaults to http_port (same port for HTTP+WebSocket).
-    If token is provided, append ?token=xxx so scanned page can use it for auth."""
+    If token is provided, append ?token=xxx so scanned page can use it for auth.
+    If locale is provided, append &lang=xxx so scanned page shows in that language."""
     if ws_port is None:
         ws_port = http_port
     base = f"http://{ip}:{http_port}"
+    params = []
     if token and token.strip():
-        qr_payload_url = f"{base}?token={token.strip()}"
-    else:
-        qr_payload_url = base
-    qr_url = qr_payload_url  # same
+        params.append(f"token={token.strip()}")
+    if locale and locale.strip():
+        params.append(f"lang={locale.strip()}")
+    qr_payload_url = f"{base}?{params[0]}" if len(params) == 1 else (f"{base}?{'&'.join(params)}" if params else base)
+    qr_url = qr_payload_url
     return qr_url, qr_payload_url

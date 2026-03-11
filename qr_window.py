@@ -26,11 +26,13 @@ class QRWindowManager:
         get_config_path: Callable[[], str],
         list_candidates: Callable[[], List[Tuple[str, str]]],
         *,
+        on_locale_change: Optional[Callable[[], None]] = None,
         dev_mode: bool = False,
         dev_close_event: Optional[threading.Event] = None,
     ):
         self.get_user_ip = get_user_ip
         self.on_ip_change = on_ip_change
+        self.on_locale_change = on_locale_change
         self.get_effective_ip = get_effective_ip
         self.get_ports = get_ports
         self.get_payload_url = get_payload_url
@@ -215,6 +217,8 @@ class QRWindowManager:
         config_store.save_config()
         from i18n import set_locale
         set_locale(locale)
+        if self.on_locale_change:
+            self.on_locale_change()
         self._refresh_ui_text()
 
     def _refresh_ui_text(self):

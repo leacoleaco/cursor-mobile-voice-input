@@ -44,12 +44,20 @@ def main():
     port = choose_free_port(DEFAULT_HTTP_PORT)
 
     qr_ip = "127.0.0.1" if QR_FORCE_LOCALHOST else get_effective_ip(config_store.USER_IP)
-    qr_url, qr_payload_url = build_urls(qr_ip, port, port, token=get_token() if config_store.AUTH_REQUIRED else None)
+    qr_url, qr_payload_url = build_urls(
+        qr_ip, port, port,
+        token=get_token() if config_store.AUTH_REQUIRED else None,
+        locale=config_store.LOCALE,
+    )
 
     def refresh_urls():
         nonlocal qr_url, qr_payload_url
         qr_ip = "127.0.0.1" if QR_FORCE_LOCALHOST else get_effective_ip(config_store.USER_IP)
-        qr_url, qr_payload_url = build_urls(qr_ip, port, port, token=get_token() if config_store.AUTH_REQUIRED else None)
+        qr_url, qr_payload_url = build_urls(
+            qr_ip, port, port,
+            token=get_token() if config_store.AUTH_REQUIRED else None,
+            locale=config_store.LOCALE,
+        )
         return qr_payload_url
 
     def get_url_state():
@@ -68,6 +76,7 @@ def main():
     qr_mgr = QRWindowManager(
         get_user_ip=lambda: config_store.USER_IP,
         on_ip_change=on_ip_change,
+        on_locale_change=refresh_urls,
         get_effective_ip=lambda: get_effective_ip(config_store.USER_IP),
         get_ports=lambda: (port, port),
         get_payload_url=lambda: qr_payload_url,
