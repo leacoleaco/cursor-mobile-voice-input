@@ -29,5 +29,7 @@
   ],
   "llm_enabled": true,
   "llm_model": "qwen3.5:0.8b",
-  "llm_base_url": "http://127.0.0.1:11434"
+  "llm_base_url": "http://127.0.0.1:11434",
+  "access_token": "288f308360fe321a97da4c0a55c4f9c09c9706b6520a32c26e6bd5cb578a1208",
+  "auth_required": true
 }

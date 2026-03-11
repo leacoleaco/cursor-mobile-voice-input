@@ -16,6 +16,7 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
 
 import config_store
 from config_store import CONFIG_PATH_FALLBACK, CONFIG_PATH_IN_USE, CONFIG_PATH_PRIMARY
+from auth_token import generate_token, get_token, set_token
 from http_server import run_server
 from ip_utils import build_urls, choose_free_port, get_effective_ip, get_ipv4_candidates
 from notifier import notify
@@ -28,15 +29,23 @@ def main():
     # ✅ 启动即读取/创建 config（打包后优先 exe 同级 config.json）
     config_store.load_config()
 
+    # Generate fresh token on every startup when auth is required
+    if config_store.AUTH_REQUIRED:
+        config_store.ACCESS_TOKEN = generate_token()
+        config_store.save_config()
+        set_token(config_store.ACCESS_TOKEN)
+    else:
+        set_token(None)  # No auth
+
     port = choose_free_port(DEFAULT_HTTP_PORT)
 
     qr_ip = "127.0.0.1" if QR_FORCE_LOCALHOST else get_effective_ip(config_store.USER_IP)
-    qr_url, qr_payload_url = build_urls(qr_ip, port, port)
+    qr_url, qr_payload_url = build_urls(qr_ip, port, port, token=get_token() if config_store.AUTH_REQUIRED else None)
 
     def refresh_urls():
         nonlocal qr_url, qr_payload_url
         qr_ip = "127.0.0.1" if QR_FORCE_LOCALHOST else get_effective_ip(config_store.USER_IP)
-        qr_url, qr_payload_url = build_urls(qr_ip, port, port)
+        qr_url, qr_payload_url = build_urls(qr_ip, port, port, token=get_token() if config_store.AUTH_REQUIRED else None)
         return qr_payload_url
 
     def get_url_state():

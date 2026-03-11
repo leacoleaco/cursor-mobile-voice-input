@@ -125,8 +125,8 @@
 <body>
   <div id="disconnectOverlay" class="disconnect-overlay">
     <div class="disconnect-dialog">
-      <h3>连接已断开</h3>
-      <p>WebSocket 连接已断开，请点击下方按钮刷新页面重新连接。</p>
+      <h3 id="disconnectTitle">连接已断开</h3>
+      <p id="disconnectMsg">WebSocket 连接已断开，请点击下方按钮刷新页面重新连接。</p>
       <button type="button" class="refresh-btn" id="disconnectRefreshBtn">🔄 刷新页面</button>
     </div>
   </div>
@@ -327,9 +327,25 @@ function updateConnectionUI(){
   box.classList.toggle("disconnected", !connected);
 }
 
-function showDisconnectOverlay(){
+let wsEverConnected = false;
+
+function showDisconnectOverlay(isAuthOrConnectFailed){
   const el = document.getElementById("disconnectOverlay");
-  if(el) el.classList.add("show");
+  const title = document.getElementById("disconnectTitle");
+  const msg = document.getElementById("disconnectMsg");
+  const btn = document.getElementById("disconnectRefreshBtn");
+  if(el){
+    if(isAuthOrConnectFailed){
+      if(title) title.textContent = "⚠️ 权限不正确";
+      if(msg) msg.textContent = "请重新扫码再试";
+      if(btn) btn.textContent = "我知道了";
+    } else {
+      if(title) title.textContent = "连接已断开";
+      if(msg) msg.textContent = "WebSocket 连接已断开，请点击下方按钮刷新页面重新连接。";
+      if(btn) btn.textContent = "🔄 刷新页面";
+    }
+    el.classList.add("show");
+  }
 }
 
 function hideDisconnectOverlay(){
@@ -369,10 +385,14 @@ function setMode(mode){
 
 async function connectWS(){
   // HTTP and WebSocket share same port; connect to /ws on same host
-  const wsUrl = `ws://${location.host}/ws`;
+  // Pass token in query so server can validate (browser WebSocket API cannot set custom headers)
+  const token = new URLSearchParams(location.search).get("token");
+  const wsPath = token ? `/ws?token=${encodeURIComponent(token)}` : "/ws";
+  const wsUrl = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${wsPath}`;
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
+    wsEverConnected = true;
     log("✅ 已连接到：" + wsUrl);
     updateConnectionUI();
     hideDisconnectOverlay();
@@ -381,13 +401,13 @@ async function connectWS(){
   ws.onclose = () => {
     log("❌ 连接断开");
     updateConnectionUI();
-    showDisconnectOverlay();
+    showDisconnectOverlay(!wsEverConnected);
   };
 
   ws.onerror = () => {
     log("❌ WebSocket 错误");
     updateConnectionUI();
-    showDisconnectOverlay();
+    showDisconnectOverlay(!wsEverConnected);
   };
 
   const llmStreamEl = document.getElementById("llmStream");
@@ -442,6 +462,11 @@ updateConnectionUI();
   const doRefresh = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    const title = document.getElementById("disconnectTitle");
+    if(title && title.textContent.indexOf("权限不正确") >= 0){
+      alert("请关闭此页面，使用最新二维码重新扫码");
+      return;
+    }
     btn.disabled = true;
     btn.textContent = "正在刷新...";
     location.reload();

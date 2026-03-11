@@ -3,10 +3,41 @@ import json
 import threading
 from typing import Optional, Set
 
-from flask import Flask, jsonify, send_file
+from flask import Flask, Response, jsonify, request, send_file
 from flask_sock import Sock
 
+from auth_token import get_token, validate_request
+
 from commands import handle_command_with_llm
+
+
+def _auth_error_html() -> str:
+    """HTML page shown when auth fails on main page (e.g. old QR / wrong token)."""
+    return """<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>权限错误</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); padding: 20px; }
+    .dialog { background: #fff; border-radius: 14px; padding: 28px; max-width: 320px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+    .dialog h3 { margin: 0 0 14px; font-size: 20px; color: #c0392b; }
+    .dialog p { margin: 0 0 24px; font-size: 16px; color: #555; line-height: 1.6; }
+    .dialog .btn { font-size: 16px; padding: 12px 24px; border-radius: 10px; border: none; background: #4a90d9; color: #fff; cursor: pointer; }
+    .dialog .btn:active { transform: translateY(1px); }
+  </style>
+</head>
+<body>
+  <div class="dialog">
+    <h3>⚠️ 权限不正确</h3>
+    <p>请重新扫码再试</p>
+    <button type="button" class="btn" onclick="alert('请关闭此页面，使用最新二维码重新扫码')">我知道了</button>
+  </div>
+</body>
+</html>"""
+
 from notifier import notify
 from paths import resource_path
 from screenshot import capture_screenshot
@@ -137,6 +168,22 @@ def create_app(get_url_state):
     """get_url_state returns dict: {http_port, ws_port, url, qr_url} - now http_port==ws_port."""
     app = Flask(__name__)
     sock = Sock(app)
+
+    @app.before_request
+    def _require_auth():
+        """Require Authorization/X-Authority/X-Token header or token query param for all routes."""
+        token = get_token()
+        if not token:
+            return None  # No auth configured
+        auth = request.headers.get("Authorization")
+        x_authority = request.headers.get("X-Authority")
+        x_token = request.headers.get("X-Token")
+        q_token = request.args.get("token")
+        if not validate_request(auth, x_authority, x_token, q_token):
+            # Main page: return HTML error so user sees friendly message
+            if request.path == "/" or request.path == "":
+                return Response(_auth_error_html(), status=401, mimetype="text/html; charset=utf-8")
+            return jsonify({"error": "unauthorized", "message": "Missing or invalid token"}), 401
 
     @app.route("/")
     def index():

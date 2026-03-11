@@ -21,6 +21,8 @@ COMMANDS: List[dict] = []
 LLM_ENABLED: bool = False
 LLM_MODEL: str = "qwen3.5:0.8b"
 LLM_BASE_URL: str = "http://127.0.0.1:11434"
+ACCESS_TOKEN: Optional[str] = None  # Required for HTTP/WS when AUTH_REQUIRED; None = no auth
+AUTH_REQUIRED: bool = True  # If True, HTTP/WS require token; if False, no auth (legacy)
 
 
 def _try_write_json(path: str, data: dict) -> bool:
@@ -59,7 +61,7 @@ def load_config():
     global USER_IP, CONFIG_PATH_IN_USE, CONFIG_DATA, COMMANDS, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL
 
     def _apply(data: dict):
-        global CONFIG_DATA, COMMANDS, USER_IP, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL
+        global CONFIG_DATA, COMMANDS, USER_IP, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, ACCESS_TOKEN, AUTH_REQUIRED
         CONFIG_DATA = data
         COMMANDS = _normalize_commands(data.get("commands"))
         ip = (data.get("user_ip") or "").strip()
@@ -67,6 +69,8 @@ def load_config():
         LLM_ENABLED = bool(data.get("llm_enabled", False))
         LLM_MODEL = (data.get("llm_model") or "qwen3.5:0.8b").strip() or "qwen3.5:0.8b"
         LLM_BASE_URL = (data.get("llm_base_url") or "http://127.0.0.1:11434").strip() or "http://127.0.0.1:11434"
+        ACCESS_TOKEN = (data.get("access_token") or "").strip() or None
+        AUTH_REQUIRED = data.get("auth_required", True)
 
     data = _try_read_json(CONFIG_PATH_PRIMARY)
     if isinstance(data, dict):
@@ -81,7 +85,7 @@ def load_config():
         return
 
     USER_IP = None
-    CONFIG_DATA = {"user_ip": None, "commands": [], "llm_enabled": False, "llm_model": "qwen3.5:0.8b", "llm_base_url": "http://127.0.0.1:11434"}
+    CONFIG_DATA = {"user_ip": None, "commands": [], "llm_enabled": False, "llm_model": "qwen3.5:0.8b", "llm_base_url": "http://127.0.0.1:11434", "access_token": None}
     COMMANDS = []
     LLM_ENABLED = False
     LLM_MODEL = "qwen3.5:0.8b"
@@ -94,13 +98,15 @@ def save_config():
     Persist current USER_IP/COMMANDS to disk.
     Prefer exe directory; fall back to user profile when blocked.
     """
-    global CONFIG_PATH_IN_USE, CONFIG_DATA, COMMANDS, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL
+    global CONFIG_PATH_IN_USE, CONFIG_DATA, COMMANDS, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, ACCESS_TOKEN
     data = dict(CONFIG_DATA) if isinstance(CONFIG_DATA, dict) else {}
     data["user_ip"] = USER_IP
     data["commands"] = COMMANDS
     data["llm_enabled"] = LLM_ENABLED
     data["llm_model"] = LLM_MODEL
     data["llm_base_url"] = LLM_BASE_URL
+    data["access_token"] = ACCESS_TOKEN
+    data["auth_required"] = AUTH_REQUIRED
 
     if _try_write_json(CONFIG_PATH_PRIMARY, data):
         CONFIG_PATH_IN_USE = CONFIG_PATH_PRIMARY
