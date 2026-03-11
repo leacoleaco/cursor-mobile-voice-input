@@ -69,7 +69,7 @@
     .shortcut-arrows .arrow-right { grid-column: 3; grid-row: 2; }
     .shortcut-mouse-zone { flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; }
     .shortcut-mouse-trackpad { width: 150px; height: 150px; flex-shrink: 0; border: 2px solid #4a90d9; border-radius: 10px; background: linear-gradient(145deg, #e8e8e8 0%, #d8d8d8 100%); touch-action: none; user-select: none; position: relative; overflow: hidden; }
-    .shortcut-mouse-trackpad::before { content: "鼠标区域 · 滑动·单击·长按右键"; color: #888; font-size: 10px; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none; }
+    .shortcut-mouse-trackpad .trackpad-hint { color: #888; font-size: 10px; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none; }
     .shortcut-mouse-trackpad.active-drag { background: linear-gradient(145deg, #d0e4f7 0%, #b8d4f0 100%); }
     .shortcut-mouse-trackpad.active-scroll { background: linear-gradient(145deg, #e8f0d8 0%, #d8e8c8 100%); }
     .clipboard-panel { display: none; position: relative; margin-top: 14px; padding: 14px 16px 16px; border-radius: 14px; background: #f4f4f4; border: 1px solid #d8d8d8; box-shadow: inset 4px 4px 10px rgba(0,0,0,0.12), inset -4px -4px 10px rgba(255,255,255,0.8); }
@@ -98,7 +98,7 @@
     .mouse-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
     .mouse-actions button { margin-top: 0; }
     .mouse-trackpad-wrap { margin-top: 12px; min-height: 280px; border: 2px solid #4a90d9; border-radius: 12px; background: linear-gradient(145deg, #e8e8e8 0%, #d8d8d8 100%); touch-action: none; user-select: none; -webkit-user-select: none; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
-    .mouse-trackpad-wrap::before { content: "滑动移动 · 单击左键 · 长按右键 · 双指滚动"; color: #888; font-size: 14px; pointer-events: none; }
+    .mouse-trackpad-wrap .trackpad-hint { color: #888; font-size: 14px; pointer-events: none; }
     .mouse-trackpad-wrap.active-drag { background: linear-gradient(145deg, #d0e4f7 0%, #b8d4f0 100%); }
     .mouse-trackpad-wrap.active-scroll { background: linear-gradient(145deg, #e8f0d8 0%, #d8e8c8 100%); }
     .panel-keyboard { padding: 8px 0; margin-left: -16px; margin-right: -16px; width: calc(100% + 32px); box-sizing: border-box; }
@@ -151,11 +151,11 @@
     <div class="input-box-wrap">
       <textarea id="inputBox" class="disconnected" data-i18n-placeholder="placeholderText" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
       <button class="action-btn shortcut-coffee send-btn-float send-btn-float-top-left" data-key="@" title="@">@</button>
-      <button class="action-btn send-btn-float send-btn-float-top-right" data-key="backspace" title="退格">⌫</button>
+      <button class="action-btn send-btn-float send-btn-float-top-right" data-key="backspace" data-i18n-title="backspace" title="退格">⌫</button>
       <div class="send-buttons-row">
         <button id="sendBtnLeft" class="action-btn" data-i18n="sendNow">立即发送</button>
-        <button class="action-btn" data-key="shift+enter" data-i18n="newline" title="Shift+Enter 换行">换行</button>
-        <button class="action-btn shortcut-coffee" data-key="enter" data-i18n="enter" title="回车">↵ 回车</button>
+        <button class="action-btn" data-key="shift+enter" data-i18n="newline" data-i18n-title="newline" title="换行">换行</button>
+        <button class="action-btn shortcut-coffee" data-key="enter" data-i18n="enter" data-i18n-title="enter" title="回车">↵ 回车</button>
         <button id="sendBtn" class="action-btn" data-i18n="sendNow">立即发送</button>
       </div>
     </div>
@@ -173,18 +173,18 @@
     <div class="shortcut-keys">
       <div class="shortcut-row shortcut-row-inline">
         <div class="shortcut-arrows">
-          <button class="shortcut-btn arrow-up" data-key="up" title="上">↑</button>
-          <button class="shortcut-btn arrow-left" data-key="left" title="左">←</button>
-          <button class="shortcut-btn arrow-down" data-key="down" title="下">↓</button>
-          <button class="shortcut-btn arrow-right" data-key="right" title="右">→</button>
+          <button class="shortcut-btn arrow-up" data-key="up" data-i18n-title="arrowUp" title="上">↑</button>
+          <button class="shortcut-btn arrow-left" data-key="left" data-i18n-title="arrowLeft" title="左">←</button>
+          <button class="shortcut-btn arrow-down" data-key="down" data-i18n-title="arrowDown" title="下">↓</button>
+          <button class="shortcut-btn arrow-right" data-key="right" data-i18n-title="arrowRight" title="右">→</button>
         </div>
         <div class="shortcut-mouse-zone">
-          <div id="shortcutMouseTrackpad" class="shortcut-mouse-trackpad" data-i18n-title="mouseTrackpad" title="鼠标区域：滑动移动光标 · 单击左键 · 长按右键"></div>
+          <div id="shortcutMouseTrackpad" class="shortcut-mouse-trackpad" data-i18n-title="mouseTrackpad" title="鼠标区域：滑动移动光标 · 单击左键 · 长按右键"><span class="trackpad-hint" data-i18n="trackpadLabel">鼠标区域 · 滑动·单击·长按右键</span></div>
         </div>
       </div>
       <div class="shortcut-row">
-        <button class="shortcut-btn" data-key="ctrl+i" data-i18n="shortcutCursor" title="跳转 cursor 输入框 (Ctrl+I)">跳转cursor 输入框</button>
-        <button class="shortcut-btn" data-key="ctrl+n" data-i18n="shortcutAgent" title="新建 Agent (Ctrl+N)">新建 Agent</button>
+        <button class="shortcut-btn" data-key="ctrl+i" data-i18n="shortcutCursor" data-i18n-title="shortcutCursor" title="跳转 cursor 输入框 (Ctrl+I)">跳转cursor 输入框</button>
+        <button class="shortcut-btn" data-key="ctrl+n" data-i18n="shortcutAgent" data-i18n-title="shortcutAgent" title="新建 Agent (Ctrl+N)">新建 Agent</button>
       </div>
     </div>
   </div>
@@ -284,14 +284,14 @@
       <button id="mouseScrollUpBtn" class="action-btn" data-i18n="scrollUp">⬆ 滚轮上</button>
       <button id="mouseScrollDownBtn" class="action-btn" data-i18n="scrollDown">⬇ 滚轮下</button>
     </div>
-    <div id="mouseTrackpad" class="mouse-trackpad-wrap"></div>
+    <div id="mouseTrackpad" class="mouse-trackpad-wrap"><span class="trackpad-hint" data-i18n="trackpadLabelBig">滑动移动 · 单击左键 · 长按右键 · 双指滚动</span></div>
   </div>
 
   <div id="llmStream" class=""></div>
   <div id="clipboardPanel" class="clipboard-panel">
     <div class="clipboard-header">
-      <button id="clipboardCopyBtn" class="clip-btn" data-i18n="clipboardCopy" aria-label="复制服务器剪贴板">📋 复制</button>
-      <div id="clipboardClose" class="clip-close" aria-label="关闭">×</div>
+      <button id="clipboardCopyBtn" class="clip-btn" data-i18n="clipboardCopy" data-i18n-aria-label="clipboardCopy" aria-label="复制">📋 复制</button>
+      <div id="clipboardClose" class="clip-close" data-i18n-aria-label="close" aria-label="关闭">×</div>
     </div>
     <div id="clipboardText" class="clipboard-text"></div>
     <div class="clipboard-hint" data-i18n="clipboardHint">点击标题按钮即可复制，关闭后等待下一次推送自动再显示</div>
@@ -325,6 +325,10 @@ function applyI18n(){
     const k = el.getAttribute("data-i18n-title");
     if(k && T[k]) el.title = T[k];
   });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach(el=>{
+    const k = el.getAttribute("data-i18n-aria-label");
+    if(k && T[k]) el.setAttribute("aria-label", T[k]);
+  });
   const titleEl = document.getElementById("i18n-title");
   if(titleEl && T.title) titleEl.textContent = T.title;
   const langSel = document.getElementById("langSelect");
@@ -332,7 +336,7 @@ function applyI18n(){
 }
 async function loadI18n(){
   const params = new URLSearchParams(location.search);
-  let lang = params.get("lang") || (typeof localStorage !== "undefined" ? localStorage.getItem("lang") : null);
+  let lang = params.get("lang");
   if(!lang){
     try{
       const token = params.get("token");
@@ -341,7 +345,7 @@ async function loadI18n(){
       if(r.ok){ const c = await r.json(); lang = c.locale || "zh_CN"; }
     }catch(e){}
   }
-  if(!lang) lang = "zh_CN";
+  if(!lang) lang = (typeof localStorage !== "undefined" ? localStorage.getItem("lang") : null) || "zh_CN";
   currentLang = lang;
   try{
     const token = params.get("token");
@@ -400,6 +404,7 @@ function showDisconnectOverlay(isAuthOrConnectFailed){
   const msg = document.getElementById("disconnectMsg");
   const btn = document.getElementById("disconnectRefreshBtn");
   if(el){
+    el.dataset.authMode = isAuthOrConnectFailed ? "1" : "";
     if(isAuthOrConnectFailed){
       if(title) title.textContent = t("authError");
       if(msg) msg.textContent = t("authMsg");
@@ -510,7 +515,7 @@ async function connectWS(){
         log(t("clipboardReceived"));
         if((data.string || "").trim()){
           const preview = data.string.length > 80 ? data.string.slice(0,80) + "..." : data.string;
-          log("📥 剪贴板预览：" + preview);
+          log(t("clipboardPreview") + preview);
         }
       }
     }catch(e){
@@ -531,7 +536,8 @@ async function connectWS(){
     e.preventDefault();
     e.stopPropagation();
     const title = document.getElementById("disconnectTitle");
-    if(title && title.textContent.indexOf("权限") >= 0){
+    const overlay = document.getElementById("disconnectOverlay");
+    if(overlay && overlay.dataset.authMode === "1"){
       alert(t("closeAndScan"));
       return;
     }
@@ -703,7 +709,7 @@ function sendVKey(keyStr) {
   }
   ws.send(JSON.stringify({ type: "key", key: keyStr }));
   const label = keyStr.length > 12 ? keyStr.slice(0, 10) + "…" : keyStr;
-  log("⌨️ 发送：" + label);
+  log(t("keySent") + label);
 }
 
 document.querySelectorAll("#vkeyboardPanel .vkey").forEach(btn => {
@@ -738,7 +744,7 @@ document.querySelectorAll(".shortcut-btn, button[data-key]").forEach(btn => {
     }
     ws.send(JSON.stringify({ type: "key", key }));
     const keyLabel = key === "@" ? "@" : key === "enter" ? t("enter") : key === "backspace" ? "⌫" : key === "ctrl+i" ? t("shortcutCursor") : key === "ctrl+n" ? t("shortcutAgent") : key;
-    log("⌨️ 发送按键：" + keyLabel);
+    log(t("keySent") + keyLabel);
   };
 });
 
