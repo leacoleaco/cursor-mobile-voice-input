@@ -303,6 +303,9 @@ def copy_selection():
     _send_input([down_ctrl, down_c, up_c, up_ctrl])
 
 
+VK_X = 0x58
+VK_Z = 0x5A
+VK_Y = 0x59
 VK_V = 0x56
 VK_TAB = 0x09
 VK_ESCAPE = 0x1B
@@ -419,6 +422,33 @@ def press_ctrl_v():
     up_v = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_V, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
     up_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
     _send_input([down_ctrl, down_v, up_v, up_ctrl])
+
+
+def press_ctrl_x():
+    """Press Ctrl+X to cut selected text to clipboard."""
+    down_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    down_x = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_X, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    up_x = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_X, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    up_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    _send_input([down_ctrl, down_x, up_x, up_ctrl])
+
+
+def press_ctrl_z():
+    """Press Ctrl+Z to undo."""
+    down_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    down_z = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_Z, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    up_z = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_Z, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    up_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    _send_input([down_ctrl, down_z, up_z, up_ctrl])
+
+
+def press_ctrl_y():
+    """Press Ctrl+Y to redo (Windows convention)."""
+    down_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    down_y = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_Y, wScan=0, dwFlags=0, time=0, dwExtraInfo=0))
+    up_y = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_Y, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    up_ctrl = INPUT(type=INPUT_KEYBOARD, ki=KEYBDINPUT(wVk=VK_CONTROL, wScan=0, dwFlags=KEYEVENTF_KEYUP, time=0, dwExtraInfo=0))
+    _send_input([down_ctrl, down_y, up_y, up_ctrl])
 
 
 def select_all():

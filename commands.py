@@ -6,7 +6,21 @@ from typing import Callable, List
 
 import config_store
 from i18n import _
-from input_control import focus_target, read_target_input_content
+import time
+from input_control import (
+    copy_selection,
+    focus_target,
+    get_clipboard_html,
+    get_clipboard_text,
+    press_ctrl_v,
+    press_ctrl_x,
+    press_ctrl_y,
+    press_ctrl_z,
+    press_key_combo,
+    read_target_input_content,
+    select_all,
+    set_clipboard_text,
+)
 from llm_assistant import analyze_command_plan, modify_text_via_llm
 from text_handler import handle_text_replace, server_dedup
 
@@ -90,6 +104,18 @@ def _run_browser(url: str = None, search_query: str = None) -> dict:
 
 MODIFY_TEXT_MAX_CHARS = 5000
 
+# App-level buffer for voice copy/cut: paste uses this when available
+_voice_copied_text: str = ""
+_voice_copied_html: str | None = None
+
+
+def _store_voice_copy() -> None:
+    """Read clipboard and store in app buffer for later paste."""
+    global _voice_copied_text, _voice_copied_html
+    time.sleep(0.08)  # allow clipboard to update
+    _voice_copied_text = get_clipboard_text() or ""
+    _voice_copied_html = get_clipboard_html()
+
 
 def handle_command_with_llm(
     raw_text: str,
@@ -100,9 +126,17 @@ def handle_command_with_llm(
     Handle command mode: LLM analyzes sentence -> generate execution plan -> execute.
     Supports:
     1. modify_text - Edit text in focused input (e.g. "change xx to xxx")
-    2. open_app - Open software and optionally execute (e.g. "open notepad")
-    3. open_browser - Open browser and execute (e.g. "open browser search xxx")
-    4. execute_config - Run configured command from config
+    2. edit_select_all - Select all text (e.g. "全选", "select all")
+    3. edit_select_all_copy - Select all and copy (e.g. "全选后复制")
+    4. edit_copy - Copy selection (e.g. "复制", "copy")
+    5. edit_paste - Paste from clipboard (e.g. "粘贴", "paste")
+    6. edit_cut - Cut selection (e.g. "剪切", "cut")
+    7. edit_undo - Undo (e.g. "撤销", "undo")
+    8. edit_redo - Redo (e.g. "重做", "redo")
+    9. edit_clear - Clear all text (e.g. "清空", "clear")
+    10. open_app - Open software (e.g. "open notepad")
+    11. open_browser - Open browser (e.g. "open browser search xxx")
+    12. execute_config - Run configured command from config
     """
     text = (raw_text or "").strip()
     if not text:
@@ -149,8 +183,32 @@ def handle_command_with_llm(
         send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("LLM error: {e}").format(e=e)})
         return
 
-    intent = (plan.get("intent") or "unknown").strip().lower()
-    print(f"[cmd] intent: {intent}")
+    # Support compound commands: "steps" array or single "intent"
+    steps = plan.get("steps")
+    if steps and isinstance(steps, list) and len(steps) > 0:
+        steps_to_run = steps
+        print(f"[cmd] compound steps: {[s.get('intent') for s in steps_to_run]}")
+    else:
+        steps_to_run = [plan]
+        print(f"[cmd] single intent: {plan.get('intent')}")
+
+    last_message = ""
+    for i, step in enumerate(steps_to_run):
+        intent = (step.get("intent") or "unknown").strip().lower()
+        ok, msg = _execute_single_step(step, text, intent, on_progress, on_stream)
+        if not ok:
+            send_result({"type": "cmd_result", "string": text, "ok": False, "message": msg})
+            return
+        last_message = msg
+        if i < len(steps_to_run) - 1:
+            time.sleep(0.05)  # brief pause between steps
+
+    send_result({"type": "cmd_result", "string": text, "ok": True, "message": last_message or _("Done")})
+
+
+def _execute_single_step(step, text, intent, on_progress, on_stream) -> tuple[bool, str]:
+    """Execute one step. Returns (ok, message)."""
+    plan = step  # step has intent and params
 
     # --- modify_text ---
     if intent == "modify_text":
@@ -160,21 +218,18 @@ def handle_command_with_llm(
             input_text, input_html = read_target_input_content()
         except Exception as e:
             print(f"[cmd] read_target error: {e}")
-            send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("Failed to read input: {e}").format(e=e)})
-            return
+            return (False, _("Failed to read input: {e}").format(e=e))
 
         input_text = (input_text or "").strip()
         if not input_text:
-            send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("Input box is empty, cannot modify")})
-            return
+            return (False, _("Input box is empty, cannot modify"))
 
         if len(input_text) > MODIFY_TEXT_MAX_CHARS:
-            send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("Edit box text too long, cannot execute")})
-            return
+            return (False, _("Edit box text too long, cannot execute"))
 
         on_progress("modifying", _("Modifying text..."))
         try:
-            modified = modify_text_via_llm(
+            modified, err_reason = modify_text_via_llm(
                 instruction=instruction,
                 input_text=input_text,
                 model=config_store.LLM_MODEL,
@@ -183,29 +238,82 @@ def handle_command_with_llm(
             )
         except Exception as e:
             print(f"[cmd] modify_text LLM error: {e}")
-            send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("LLM error: {e}").format(e=e)})
-            return
+            return (False, _("LLM error: {e}").format(e=e))
 
         if modified is None:
-            send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("Failed to modify text")})
-            return
+            if err_reason == "unsupported":
+                return (False, _("Modification type not supported (input not sent to LLM)"))
+            return (False, _("Failed to modify text"))
 
         focus_target()
         handle_text_replace(modified, last_sync_text=input_text, last_sync_html=input_html)
-        on_progress("done", _("Text modified"))
-        send_result({"type": "cmd_result", "string": text, "ok": True, "message": _("Text modified")})
-        return
+        return (True, _("Text modified"))
+
+    # --- edit_select_all ---
+    if intent == "edit_select_all":
+        focus_target()
+        select_all()
+        return (True, _("Select all"))
+
+    # --- edit_select_all_copy ---
+    if intent == "edit_select_all_copy":
+        focus_target()
+        select_all()
+        time.sleep(0.05)
+        copy_selection()
+        _store_voice_copy()
+        return (True, _("Select all and copy"))
+
+    # --- edit_copy ---
+    if intent == "edit_copy":
+        focus_target()
+        copy_selection()
+        _store_voice_copy()
+        return (True, _("Copy"))
+
+    # --- edit_paste ---
+    if intent == "edit_paste":
+        focus_target()
+        if _voice_copied_text:
+            set_clipboard_text(_voice_copied_text, _voice_copied_html)
+        press_ctrl_v()
+        return (True, _("Paste"))
+
+    # --- edit_cut ---
+    if intent == "edit_cut":
+        focus_target()
+        press_ctrl_x()
+        _store_voice_copy()
+        return (True, _("Cut"))
+
+    # --- edit_undo ---
+    if intent == "edit_undo":
+        focus_target()
+        press_ctrl_z()
+        return (True, _("Undo"))
+
+    # --- edit_redo ---
+    if intent == "edit_redo":
+        focus_target()
+        press_ctrl_y()
+        return (True, _("Redo"))
+
+    # --- edit_clear ---
+    if intent == "edit_clear":
+        focus_target()
+        select_all()
+        time.sleep(0.03)
+        press_key_combo("delete")
+        return (True, _("Clear"))
 
     # --- execute_config ---
     if intent == "execute_config":
         match_string = plan.get("match_string", "").strip()
         if not match_string:
-            send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("No command matched")})
-            return
+            return (False, _("No command matched"))
         on_progress("executing", _("Executing: {resolved}").format(resolved=match_string))
         result = _run_config_command(match_string)
-        send_result({"type": "cmd_result", "string": text, "ok": result.get("ok", False), "message": result.get("message", "")})
-        return
+        return (result.get("ok", False), result.get("message", ""))
 
     # --- open_app ---
     if intent == "open_app":
@@ -217,8 +325,7 @@ def handle_command_with_llm(
             app_args = []
         on_progress("executing", _("Opening application: {app}").format(app=app_path or "..."))
         result = _run_app(app_path, app_args)
-        send_result({"type": "cmd_result", "string": text, "ok": result.get("ok", False), "message": result.get("message", "")})
-        return
+        return (result.get("ok", False), result.get("message", ""))
 
     # --- open_browser ---
     if intent == "open_browser":
@@ -226,8 +333,7 @@ def handle_command_with_llm(
         search_query = plan.get("search_query", "").strip()
         on_progress("executing", _("Opening browser..."))
         result = _run_browser(url=url if url else None, search_query=search_query if search_query else None)
-        send_result({"type": "cmd_result", "string": text, "ok": result.get("ok", False), "message": result.get("message", "")})
-        return
+        return (result.get("ok", False), result.get("message", ""))
 
     # --- unknown ---
-    send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("No command matched")})
+    return (False, _("No command matched"))

@@ -274,6 +274,9 @@ msgstr "读取输入失败：{e}"
 msgid "Failed to modify text"
 msgstr "修改文本失败"
 
+msgid "Modification type not supported (input not sent to LLM)"
+msgstr "此修改类型不支持（输入内容不发送给大模型）"
+
 msgid "Reading input..."
 msgstr "正在读取输入..."
 
@@ -282,6 +285,30 @@ msgstr "正在修改文本..."
 
 msgid "Text modified"
 msgstr "文本已修改"
+
+msgid "Select all"
+msgstr "全选"
+
+msgid "Select all and copy"
+msgstr "全选并复制"
+
+msgid "Copy"
+msgstr "复制"
+
+msgid "Paste"
+msgstr "粘贴"
+
+msgid "Cut"
+msgstr "剪切"
+
+msgid "Undo"
+msgstr "撤销"
+
+msgid "Redo"
+msgstr "重做"
+
+msgid "Clear"
+msgstr "清空"
 
 msgid "Unknown message type"
 msgstr "不存在的消息类型"

@@ -274,6 +274,9 @@ msgstr "Failed to read input: {e}"
 msgid "Failed to modify text"
 msgstr "Failed to modify text"
 
+msgid "Modification type not supported (input not sent to LLM)"
+msgstr "Modification type not supported (input not sent to LLM)"
+
 msgid "Reading input..."
 msgstr "Reading input..."
 
@@ -282,6 +285,30 @@ msgstr "Modifying text..."
 
 msgid "Text modified"
 msgstr "Text modified"
+
+msgid "Select all"
+msgstr "Select all"
+
+msgid "Select all and copy"
+msgstr "Select all and copy"
+
+msgid "Copy"
+msgstr "Copy"
+
+msgid "Paste"
+msgstr "Paste"
+
+msgid "Cut"
+msgstr "Cut"
+
+msgid "Undo"
+msgstr "Undo"
+
+msgid "Redo"
+msgstr "Redo"
+
+msgid "Clear"
+msgstr "Clear"
 
 msgid "Unknown message type"
 msgstr "Unknown message type"

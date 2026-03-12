@@ -410,39 +410,40 @@ def _parse_intent_response(content: str, config_match_strings: List[str]) -> dic
     return {"intent": INTENT_UNKNOWN}
 
 
-def modify_text_via_llm(
+def parse_modify_rule_via_llm(
     instruction: str,
-    input_text: str,
     model: str = "qwen3.5:0.8b",
     base_url: str = "http://127.0.0.1:11434",
-    timeout: float = 60.0,
+    timeout: float = 30.0,
     on_stream: Optional[Callable[[str], None]] = None,
-) -> Optional[str]:
+) -> Optional[dict]:
     """
-    Use LLM to modify text according to user instruction. All prompts in English.
-    Returns the modified text, or None on failure.
+    Parse user instruction into a structured edit rule. Input box content is NOT sent to LLM.
+    Returns rule dict e.g. {"action":"replace_all","old":"x","new":"y"} or None.
     """
     instruction = (instruction or "").strip()
-    input_text = (input_text or "").strip()
-
     if not instruction:
-        return input_text
-    if not input_text:
-        return ""
-
+        return None
     if not _check_ollama(base_url):
         return None
 
-    prompt = f"""You are a text editing assistant. The user wants to modify the following text.
+    prompt = f"""You are a command parser. The user gave an edit instruction (in any language). Parse it into a JSON rule. You only see the instruction - no document text.
 
-User instruction (in any language): "{instruction}"
+User instruction: "{instruction}"
 
-Original text:
----
-{input_text}
----
+Output ONLY valid JSON. Supported actions:
+- replace_all: {{"action":"replace_all","old":"<exact substring>","new":"<replacement>"}} - e.g. "把xx改成yy", "change X to Y"
+- replace_first: {{"action":"replace_first","old":"<exact substring>","new":"<replacement>"}}
+- delete_all: {{"action":"delete_all","old":"<exact substring>"}} - remove all occurrences (new is empty)
+- append: {{"action":"append","text":"<text to add at end>"}}
+- prepend: {{"action":"prepend","text":"<text to add at start>"}}
+- trim_end: {{"action":"trim_end"}}
+- trim_start: {{"action":"trim_start"}}
+- uppercase: {{"action":"uppercase"}}
+- lowercase: {{"action":"lowercase"}}
+- unsupported: {{"action":"unsupported"}} - for translate, rewrite tone, fix typos, or any semantic change requiring the actual text
 
-Apply the user's instruction to the text. Output ONLY the modified text, nothing else. No explanation, no markdown, no quotes around the output. Preserve the language and structure unless the instruction says otherwise."""
+No explanation, no markdown, only JSON."""
 
     result = [None]
 
@@ -450,17 +451,95 @@ Apply the user's instruction to the text. Output ONLY the modified text, nothing
         content = _chat_via_http(
             base_url, model, prompt, timeout,
             stream=bool(on_stream), on_stream=on_stream,
-            num_predict=4096,
+            num_predict=256,
         )
-        print(f"[cmd] llm response: {content}")
+        print(f"[cmd] parse_modify_rule response: {content}")
         if content:
-            result[0] = content.strip()
+            content = content.strip().strip("`").strip()
+            if content.lower().startswith("json"):
+                content = content[4:].strip()
+            try:
+                obj = json.loads(content)
+                if isinstance(obj, dict) and obj.get("action"):
+                    result[0] = obj
+            except json.JSONDecodeError:
+                pass
 
     t = threading.Thread(target=_call, daemon=True)
     t.start()
     t.join(timeout=timeout)
-
     return result[0]
+
+
+def apply_modify_rule(rule: dict, input_text: str) -> str | None:
+    """Apply a parsed rule locally. Input text never leaves this function.
+    Returns None when action is 'unsupported' (semantic edits need text, which we don't send)."""
+    if not rule or not isinstance(rule, dict):
+        return input_text
+    action = (rule.get("action") or "").strip().lower()
+    if action == "unsupported":
+        return None  # caller should show "not supported" message
+
+    if action == "replace_all":
+        old = rule.get("old", "")
+        new = rule.get("new", "")
+        return input_text.replace(old, new)
+    if action == "delete_all":
+        old = rule.get("old", "")
+        return input_text.replace(old, "")
+    if action == "replace_first":
+        old = rule.get("old", "")
+        new = rule.get("new", "")
+        return input_text.replace(old, new, 1)
+    if action == "append":
+        return input_text + (rule.get("text") or "")
+    if action == "prepend":
+        return (rule.get("text") or "") + input_text
+    if action == "trim_end":
+        return input_text.rstrip()
+    if action == "trim_start":
+        return input_text.lstrip()
+    if action == "uppercase":
+        return input_text.upper()
+    if action == "lowercase":
+        return input_text.lower()
+    return input_text
+
+
+def modify_text_via_llm(
+    instruction: str,
+    input_text: str,
+    model: str = "qwen3.5:0.8b",
+    base_url: str = "http://127.0.0.1:11434",
+    timeout: float = 60.0,
+    on_stream: Optional[Callable[[str], None]] = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """
+    Modify text by: (1) LLM parses instruction into rule (instruction only, no input_text),
+    (2) apply rule locally. Input box content is never sent to the LLM.
+    Returns (modified_text, error_reason). error_reason is None on success,
+    "unsupported" when instruction needs semantic analysis, or "parse_failed" when LLM failed.
+    """
+    instruction = (instruction or "").strip()
+    input_text = (input_text or "").strip()
+    if not instruction:
+        return (input_text, None)
+    if not input_text:
+        return ("", None)
+
+    rule = parse_modify_rule_via_llm(
+        instruction,
+        model=model,
+        base_url=base_url,
+        timeout=timeout,
+        on_stream=on_stream,
+    )
+    if not rule:
+        return (None, "parse_failed")
+    result = apply_modify_rule(rule, input_text)
+    if result is None:
+        return (None, "unsupported")
+    return (result, None)
 
 
 def analyze_command_plan(
@@ -499,24 +578,35 @@ Configured commands (use execute_config with exact match_string if user intent m
 
     prompt = f"""You are a voice command analyzer. The user said (in any language): "{user_command}"
 
-Analyze and output a JSON object with ONE of these intents:
+The user may give a SINGLE command or a SEQUENCE of commands (e.g. "全选后复制", "帮我全选文字后并复制", "全选然后复制再粘贴").
 
-1. modify_text - User wants to edit/change text in the focused input box. Examples: "change xx to xxx", "修改xx为xxx", "fix typos", "translate to English"
-   Output: {{"intent":"modify_text","instruction":"<user's edit instruction in full>"}}
+Output format:
+- For a SINGLE command: {{"intent":"<intent>", ...params}}
+- For a SEQUENCE of commands: {{"steps":[{{"intent":"<intent>", ...params}}, {{"intent":"<intent>", ...params}}, ...]}}
 
-2. open_app - User wants to open an application/software and optionally run something. Examples: "open notepad", "打开记事本", "run calculator"
-   Output: {{"intent":"open_app","app_path":"<exe path or app name like notepad>","app_args":[]}}
-   For Windows: notepad, calc, cmd, explorer. For full path use the path.
-
-3. open_browser - User wants to open browser and do something. Examples: "open browser search xxx", "打开浏览器搜索xxx", "open google.com"
-   For URL: {{"intent":"open_browser","url":"https://..."}}
-   For search: {{"intent":"open_browser","search_query":"<search terms>"}}
+Available intents:
+1. modify_text - Edit/change text. Output: {{"intent":"modify_text","instruction":"<full instruction>"}}
+2. edit_select_all - Select all. Output: {{"intent":"edit_select_all"}}
+3. edit_select_all_copy - Select all AND copy (one combined step). Output: {{"intent":"edit_select_all_copy"}}
+4. edit_copy - Copy selection. Output: {{"intent":"edit_copy"}}
+5. edit_paste - Paste. Output: {{"intent":"edit_paste"}}
+6. edit_cut - Cut selection. Output: {{"intent":"edit_cut"}}
+7. edit_undo - Undo. Output: {{"intent":"edit_undo"}}
+8. edit_redo - Redo. Output: {{"intent":"edit_redo"}}
+9. edit_clear - Clear all. Output: {{"intent":"edit_clear"}}
+10. open_app - Open app. Output: {{"intent":"open_app","app_path":"<path>","app_args":[]}}
+11. open_browser - Open browser. Output: {{"intent":"open_browser","url":"..."}} or {{"intent":"open_browser","search_query":"..."}}
 {config_section}
-4. execute_config - User intent matches one of the configured commands above. Use exact match_string.
-   Output: {{"intent":"execute_config","match_string":"<exact match from list>"}}
+12. execute_config - Run configured command. Output: {{"intent":"execute_config","match_string":"<exact match>"}}
+13. unknown - None match. Output: {{"intent":"unknown"}}
 
-5. unknown - None of the above
-   Output: {{"intent":"unknown"}}
+Examples of compound commands:
+- "全选后复制" or "帮我全选文字后并复制" -> {{"steps":[{{"intent":"edit_select_all"}},{{"intent":"edit_copy"}}]}} OR {{"intent":"edit_select_all_copy"}}
+- "全选复制再粘贴" -> {{"steps":[{{"intent":"edit_select_all_copy"}},{{"intent":"edit_paste"}}]}}
+- "全选后剪切" -> {{"steps":[{{"intent":"edit_select_all"}},{{"intent":"edit_cut"}}]}}
+- "复制然后粘贴" -> {{"steps":[{{"intent":"edit_copy"}},{{"intent":"edit_paste"}}]}}
+
+Use "steps" when the user clearly wants multiple operations in sequence. Use single "intent" when it's one operation.
 
 Reply with ONLY valid JSON, no explanation, no markdown code block."""
 
@@ -542,6 +632,22 @@ Reply with ONLY valid JSON, no explanation, no markdown code block."""
                 lower = content.lower()
                 if "modify_text" in lower or "modify text" in lower:
                     result[0] = {"intent": "modify_text", "instruction": user_command}
+                elif "edit_select_all_copy" in lower or "select all and copy" in lower or ("全选" in user_command and "复制" in user_command):
+                    result[0] = {"intent": "edit_select_all_copy"}
+                elif "edit_select_all" in lower or "select all" in lower:
+                    result[0] = {"intent": "edit_select_all"}
+                elif "edit_copy" in lower or "copy" in lower:
+                    result[0] = {"intent": "edit_copy"}
+                elif "edit_paste" in lower or "paste" in lower:
+                    result[0] = {"intent": "edit_paste"}
+                elif "edit_cut" in lower or "cut" in lower:
+                    result[0] = {"intent": "edit_cut"}
+                elif "edit_undo" in lower or "undo" in lower:
+                    result[0] = {"intent": "edit_undo"}
+                elif "edit_redo" in lower or "redo" in lower:
+                    result[0] = {"intent": "edit_redo"}
+                elif "edit_clear" in lower or "clear" in lower:
+                    result[0] = {"intent": "edit_clear"}
                 elif "open_app" in lower or "open app" in lower:
                     result[0] = {"intent": "open_app", "app_path": "notepad", "app_args": []}
                 elif "open_browser" in lower or "open browser" in lower:
