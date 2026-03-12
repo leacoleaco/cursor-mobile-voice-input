@@ -1,9 +1,11 @@
 {
   "user_ip": null,
+  "run_in_background": false,
   "llm_enabled": true,
   "llm_model": "qwen3.5:0.8b",
   "llm_base_url": "http://127.0.0.1:11434",
-  "access_token": "4326e21108014aae6cc1f6bd938c5f8dbde579087b5edbf71621e7c4c14890a1",
+  "access_token": "ea890ec2658d3dd6bbf8faecebddcc88d4eefa5c03085c54b8706a050fcb2222",
   "auth_required": true,
-  "locale": "zh_CN"
+  "locale": "zh_CN",
+  "commands": []
 }

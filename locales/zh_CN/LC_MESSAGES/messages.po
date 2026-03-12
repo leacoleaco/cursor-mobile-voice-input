@@ -46,6 +46,9 @@ msgstr "LLM：{model} (已启用)"
 msgid "LLM: disabled"
 msgstr "LLM：未启用"
 
+msgid "Run in background when closed"
+msgstr "关闭时挂载到后台运行"
+
 msgid "Closing this window will exit the app"
 msgstr "关闭此窗口将退出程序"
 

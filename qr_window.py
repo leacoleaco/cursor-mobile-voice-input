@@ -94,6 +94,32 @@ class QRWindowManager:
         self.root.after(100, self._poll_queue)
 
     def _close_window(self):
+        if self.dev_mode:
+            if self.top is not None:
+                try:
+                    self.top.destroy()
+                except Exception:
+                    pass
+            self.top = None
+            self.tk_img = None
+            self.combo = None
+            self.lang_combo = None
+            self.lang_var = None
+            self._header_widgets = None
+            self.img_label = None
+            self.url_label = None
+            self.tip_label = None
+            self.root.quit()
+            if self.dev_close_event:
+                self.dev_close_event.set()
+            os._exit(0)
+            return
+
+        if not config_store.RUN_IN_BACKGROUND:
+            from tray_app import request_quit
+            request_quit()
+            return
+
         if self.top is not None:
             try:
                 self.top.destroy()
@@ -108,12 +134,6 @@ class QRWindowManager:
         self.img_label = None
         self.url_label = None
         self.tip_label = None
-
-        if self.dev_mode:
-            self.root.quit()
-            if self.dev_close_event:
-                self.dev_close_event.set()
-            os._exit(0)
 
     def _ensure_window(self):
         if self.top is not None:
@@ -150,6 +170,11 @@ class QRWindowManager:
         btn_settings = ttk.Button(header, text=_("Settings"), command=self._show_settings)
         btn_settings.pack(side="left", padx=(6, 0))
         self._header_widgets["btn_settings"] = btn_settings
+
+        self.run_in_bg_var = tk.BooleanVar(value=config_store.RUN_IN_BACKGROUND)
+        cb_bg = ttk.Checkbutton(header, text=_("Run in background when closed"), variable=self.run_in_bg_var, command=self._on_run_in_bg_changed)
+        cb_bg.pack(side="left", padx=(6, 0))
+        self._header_widgets["cb_run_in_bg"] = cb_bg
 
         self.combo.bind("<<ComboboxSelected>>", lambda e: self._on_ip_selected())
 
@@ -209,6 +234,12 @@ class QRWindowManager:
         self._reload_ip_list_and_select_current()
         self._refresh_qr_and_text()
 
+    def _on_run_in_bg_changed(self):
+        """Save run-in-background setting when checkbox changes."""
+        config_store.RUN_IN_BACKGROUND = self.run_in_bg_var.get()
+        config_store.save_config()
+        self._refresh_qr_and_text()
+
     def _on_lang_changed(self):
         """Apply language change immediately."""
         display = (self.lang_var.get() or "中文").strip()
@@ -229,6 +260,9 @@ class QRWindowManager:
         self._header_widgets["ip_label"].configure(text=_("Select NIC/IP:"))
         self._header_widgets["btn_auto"].configure(text=_("Auto recommended"))
         self._header_widgets["btn_settings"].configure(text=_("Settings"))
+        self._header_widgets["cb_run_in_bg"].configure(text=_("Run in background when closed"))
+        if self.run_in_bg_var:
+            self.run_in_bg_var.set(config_store.RUN_IN_BACKGROUND)
         self._reload_ip_list_and_select_current()
         self._refresh_qr_and_text()
 
@@ -300,7 +334,12 @@ class QRWindowManager:
         mode = _("Manual") if (self.get_user_ip() and self.get_user_ip().strip()) else _("Auto")
         http_port, ws_port = self.get_ports()
         llm_line = _("LLM: {model} (enabled)").format(model=config_store.LLM_MODEL) if config_store.LLM_ENABLED else _("LLM: disabled")
-        close_tip = _("Closing this window will exit the app") if self.dev_mode else _("Closing this window does not affect background running")
+        if self.dev_mode:
+            close_tip = _("Closing this window will exit the app")
+        elif config_store.RUN_IN_BACKGROUND:
+            close_tip = _("Closing this window does not affect background running")
+        else:
+            close_tip = _("Closing this window will exit the app")
         self.tip_label.configure(
             text=_("Scan with phone to open page (same WiFi / same subnet)") + "\n"
             + _("Mode: {mode}  IP: {ip}").format(mode=mode, ip=ip_show) + "\n"

@@ -24,6 +24,7 @@ LLM_BASE_URL: str = "http://127.0.0.1:11434"
 ACCESS_TOKEN: Optional[str] = None  # Required for HTTP/WS when AUTH_REQUIRED; None = no auth
 AUTH_REQUIRED: bool = True  # If True, HTTP/WS require token; if False, no auth (legacy)
 LOCALE: str = "zh_CN"  # UI language: zh_CN, en
+RUN_IN_BACKGROUND: bool = True  # If True, closing window minimizes to tray; if False, exits app
 
 
 def _try_write_json(path: str, data: dict) -> bool:
@@ -62,7 +63,7 @@ def load_config():
     global USER_IP, CONFIG_PATH_IN_USE, CONFIG_DATA, COMMANDS, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL
 
     def _apply(data: dict):
-        global CONFIG_DATA, COMMANDS, USER_IP, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, ACCESS_TOKEN, AUTH_REQUIRED, LOCALE
+        global CONFIG_DATA, COMMANDS, USER_IP, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, ACCESS_TOKEN, AUTH_REQUIRED, LOCALE, RUN_IN_BACKGROUND
         CONFIG_DATA = data
         COMMANDS = _normalize_commands(data.get("commands"))
         ip = (data.get("user_ip") or "").strip()
@@ -73,6 +74,7 @@ def load_config():
         ACCESS_TOKEN = (data.get("access_token") or "").strip() or None
         AUTH_REQUIRED = data.get("auth_required", True)
         LOCALE = (data.get("locale") or "zh_CN").strip() or "zh_CN"
+        RUN_IN_BACKGROUND = data.get("run_in_background", True)
 
     data = _try_read_json(CONFIG_PATH_PRIMARY)
     if isinstance(data, dict):
@@ -86,10 +88,11 @@ def load_config():
         CONFIG_PATH_IN_USE = CONFIG_PATH_FALLBACK
         return
 
-    global LOCALE
+    global LOCALE, RUN_IN_BACKGROUND
     USER_IP = None
     LOCALE = "zh_CN"
-    CONFIG_DATA = {"user_ip": None, "commands": [], "llm_enabled": False, "llm_model": "qwen3.5:0.8b", "llm_base_url": "http://127.0.0.1:11434", "access_token": None, "locale": "zh_CN"}
+    RUN_IN_BACKGROUND = True
+    CONFIG_DATA = {"user_ip": None, "commands": [], "run_in_background": True, "llm_enabled": False, "llm_model": "qwen3.5:0.8b", "llm_base_url": "http://127.0.0.1:11434", "access_token": None, "locale": "zh_CN"}
     COMMANDS = []
     LLM_ENABLED = False
     LLM_MODEL = "qwen3.5:0.8b"
@@ -102,10 +105,11 @@ def save_config():
     Persist current USER_IP/COMMANDS to disk.
     Prefer exe directory; fall back to user profile when blocked.
     """
-    global CONFIG_PATH_IN_USE, CONFIG_DATA, COMMANDS, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, ACCESS_TOKEN
+    global CONFIG_PATH_IN_USE, CONFIG_DATA, COMMANDS, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, ACCESS_TOKEN, RUN_IN_BACKGROUND
     data = dict(CONFIG_DATA) if isinstance(CONFIG_DATA, dict) else {}
     data["user_ip"] = USER_IP
     data["commands"] = COMMANDS
+    data["run_in_background"] = RUN_IN_BACKGROUND
     data["llm_enabled"] = LLM_ENABLED
     data["llm_model"] = LLM_MODEL
     data["llm_base_url"] = LLM_BASE_URL

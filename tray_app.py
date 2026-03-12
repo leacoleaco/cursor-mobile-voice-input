@@ -16,6 +16,15 @@ from http_server import schedule_broadcast
 CLIPBOARD_LAST_TEXT = ""
 CLIPBOARD_LAST_TIME = 0.0
 QR_MANAGER = None
+TRAY_ICON = None
+
+
+def request_quit():
+    """Exit the app (called when user closes window with run_in_background=False)."""
+    if TRAY_ICON:
+        notify(_("Quit"), _("LAN Voice Input has exited"))
+        TRAY_ICON.stop()
+    os._exit(0)
 
 
 def tray_show_qr(icon, _):
@@ -53,7 +62,7 @@ def tray_quit(icon, _):
 
 
 def run_tray(qr_manager):
-    global QR_MANAGER
+    global QR_MANAGER, TRAY_ICON
     QR_MANAGER = qr_manager
     image_path = resource_path("icon.ico")
     menu = (
@@ -62,5 +71,6 @@ def run_tray(qr_manager):
         item(_("Quit"), tray_quit),
     )
     tray_icon = pystray.Icon("CursorMobileVoiceInput", Image.open(image_path), "LAN Voice Input", menu)
+    TRAY_ICON = tray_icon
     set_tray_icon(tray_icon)
     tray_icon.run()

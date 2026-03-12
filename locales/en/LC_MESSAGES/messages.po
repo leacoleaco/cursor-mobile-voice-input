@@ -46,6 +46,9 @@ msgstr "LLM: {model} (enabled)"
 msgid "LLM: disabled"
 msgstr "LLM: disabled"
 
+msgid "Run in background when closed"
+msgstr "Run in background when closed"
+
 msgid "Closing this window will exit the app"
 msgstr "Closing this window will exit the app"
 
