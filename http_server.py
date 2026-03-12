@@ -301,6 +301,19 @@ def create_app(get_url_state):
                             ws.send(json.dumps({"type": "sync_content", "string": "", "error": str(e)}, ensure_ascii=False))
                         except Exception:
                             pass
+                elif msg_type in ("text", "html"):
+                    try:
+                        text_str = str(content or "").strip() if content is not None else ""
+                        replace = bool(payload.get("replace", False))
+                        handle_text(
+                            text_str,
+                            mode=msg_type,
+                            replace=replace,
+                            last_sync_text=_LAST_SYNC_TEXT or None,
+                            last_sync_html=_LAST_SYNC_HTML,
+                        )
+                    except Exception as e:
+                        print(f"[text/html] error: {e}")
                 else:
                     err_msg = _("Unknown message type")
                     err_html = f"""<!DOCTYPE html>
