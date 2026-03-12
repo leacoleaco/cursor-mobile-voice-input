@@ -416,6 +416,7 @@ def parse_modify_rule_via_llm(
     base_url: str = "http://127.0.0.1:11434",
     timeout: float = 30.0,
     on_stream: Optional[Callable[[str], None]] = None,
+    on_complete: Optional[Callable[[str, dict], None]] = None,
 ) -> Optional[dict]:
     """
     Parse user instruction into a structured edit rule. Input box content is NOT sent to LLM.
@@ -462,6 +463,11 @@ No explanation, no markdown, only JSON."""
                 obj = json.loads(content)
                 if isinstance(obj, dict) and obj.get("action"):
                     result[0] = obj
+                    if on_complete:
+                        try:
+                            on_complete(content, obj)
+                        except Exception:
+                            pass
             except json.JSONDecodeError:
                 pass
 
@@ -513,6 +519,7 @@ def modify_text_via_llm(
     base_url: str = "http://127.0.0.1:11434",
     timeout: float = 60.0,
     on_stream: Optional[Callable[[str], None]] = None,
+    on_rule_parsed: Optional[Callable[[str, dict], None]] = None,
 ) -> tuple[Optional[str], Optional[str]]:
     """
     Modify text by: (1) LLM parses instruction into rule (instruction only, no input_text),
@@ -533,6 +540,7 @@ def modify_text_via_llm(
         base_url=base_url,
         timeout=timeout,
         on_stream=on_stream,
+        on_complete=on_rule_parsed,
     )
     if not rule:
         return (None, "parse_failed")

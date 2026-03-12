@@ -1,4 +1,5 @@
 """Voice command handling: LLM analyzes intent and executes the plan."""
+import json
 import shlex
 import subprocess
 import webbrowser
@@ -177,6 +178,7 @@ def handle_command_with_llm(
             base_url=config_store.LLM_BASE_URL,
             on_stream=on_stream,
         )
+        on_progress("llm_plan", json.dumps(plan, ensure_ascii=False, indent=2))
     except Exception as e:
         print(f"[cmd] LLM error: {e}")
         on_progress("error", str(e))
@@ -228,6 +230,10 @@ def _execute_single_step(step, text, intent, on_progress, on_stream) -> tuple[bo
             return (False, _("Edit box text too long, cannot execute"))
 
         on_progress("modifying", _("Modifying text..."))
+
+        def on_rule_parsed(raw_content: str, rule: dict):
+            on_progress("llm_rule", json.dumps(rule, ensure_ascii=False, indent=2))
+
         try:
             modified, err_reason = modify_text_via_llm(
                 instruction=instruction,
@@ -235,6 +241,7 @@ def _execute_single_step(step, text, intent, on_progress, on_stream) -> tuple[bo
                 model=config_store.LLM_MODEL,
                 base_url=config_store.LLM_BASE_URL,
                 on_stream=on_stream,
+                on_rule_parsed=on_rule_parsed,
             )
         except Exception as e:
             print(f"[cmd] modify_text LLM error: {e}")

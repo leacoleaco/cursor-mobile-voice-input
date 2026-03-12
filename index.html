@@ -162,10 +162,9 @@
       <button class="action-btn shortcut-coffee send-btn-float send-btn-float-top-left" data-key="@" title="@">@</button>
       <button class="action-btn send-btn-float send-btn-float-top-right" data-key="backspace" data-i18n-title="backspace" title="退格">⌫</button>
       <div class="send-buttons-row">
-        <button id="sendBtnLeft" class="action-btn" data-i18n="sendNow">立即发送</button>
+        <button id="sendBtn" class="action-btn" data-i18n="sendNow">立即发送</button>
         <button class="action-btn" data-key="shift+enter" data-i18n="newline" data-i18n-title="newline" title="换行">换行</button>
         <button class="action-btn shortcut-coffee" data-key="enter" data-i18n="enter" data-i18n-title="enter" title="回车">↵ 回车</button>
-        <button id="sendBtn" class="action-btn" data-i18n="sendNow">立即发送</button>
       </div>
     </div>
     <div class="action" style="margin-top: 10px;">
@@ -447,10 +446,13 @@ function setMode(mode){
   document.body.classList.toggle("mode-keyboard", mode === "keyboard");
   document.body.classList.toggle("mode-cmd", mode === "cmd");
   const inputBox = document.getElementById("inputBox");
+  const sendBtn = document.getElementById("sendBtn");
   if(mode === "cmd"){
     inputBox.placeholder = t("placeholderCmd");
+    if(sendBtn) sendBtn.textContent = t("sendNowCmd");
   }else if(mode === "text"){
     inputBox.placeholder = t("placeholderText");
+    if(sendBtn) sendBtn.textContent = t("sendNow");
   }
   log(t("switchMode") + (mode === "text" ? t("modeTextLabel") : mode === "cmd" ? t("modeCmdLabel") : mode === "mouse" ? t("modeMouseLabel") : t("modeKeyboardLabel")));
   if(mode === "text" || mode === "cmd") {
@@ -513,13 +515,40 @@ async function connectWS(){
         const msg = data.message || "";
         if(step === "llm_judging"){ showLlmStream(t("llmJudging")); log("🤖 " + msg); }
         else if(step === "llm_stream") showLlmStream(msg);
-        else if(step === "matched"){ showLlmStream(""); log("✓ " + msg); }
-        else if(step === "executing"){ showLlmStream(""); log("▶ " + msg); }
-        else if(step === "done"){ showLlmStream(""); log("✅ " + msg); }
-        else if(step === "no_match"){ showLlmStream(""); log("⚠ " + msg); }
-        else if(step === "error"){ showLlmStream(""); log("❌ " + msg); }
-        else{ showLlmStream(""); log("ℹ " + msg); }
+        else if(step === "llm_plan"){
+          const full = (llmStreamEl && llmStreamEl.textContent) || "";
+          const prefix = t("llmOutput") || "🤖 大模型输出：";
+          const streamText = full.startsWith(prefix) ? full.slice(prefix.length).trim() : full.trim();
+          if(streamText) log("📝 " + (t("llmOutputLog") || "LLM output:") + "\n" + streamText);
+          showLlmStream("");
+          log("📋 " + (t("llmPlanLog") || "LLM plan:") + "\n" + msg);
+        }
+        else if(step === "llm_rule"){
+          const full = (llmStreamEl && llmStreamEl.textContent) || "";
+          const prefix = t("llmOutput") || "🤖 大模型输出：";
+          const streamText = full.startsWith(prefix) ? full.slice(prefix.length).trim() : full.trim();
+          if(streamText) log("📝 " + (t("llmOutputLog") || "LLM output:") + "\n" + streamText);
+          showLlmStream("");
+          log("📋 " + (t("llmRuleLog") || "LLM rule:") + "\n" + msg);
+        }
+        else {
+          const full = (llmStreamEl && llmStreamEl.textContent) || "";
+          const prefix = t("llmOutput") || "🤖 大模型输出：";
+          const streamText = full.startsWith(prefix) ? full.slice(prefix.length).trim() : full.trim();
+          if(streamText) log("📝 " + (t("llmOutputLog") || "LLM output:") + "\n" + streamText);
+          showLlmStream("");
+          if(step === "matched") log("✓ " + msg);
+          else if(step === "executing") log("▶ " + msg);
+          else if(step === "done") log("✅ " + msg);
+          else if(step === "no_match") log("⚠ " + msg);
+          else if(step === "error") log("❌ " + msg);
+          else log("ℹ " + msg);
+        }
       }else if(data && data.type === "cmd_result"){
+        const full = (llmStreamEl && llmStreamEl.textContent) || "";
+        const prefix = t("llmOutput") || "🤖 大模型输出：";
+        const streamText = full.startsWith(prefix) ? full.slice(prefix.length).trim() : full.trim();
+        if(streamText) log("📝 " + (t("llmOutputLog") || "LLM output:") + "\n" + streamText);
         showLlmStream("");
         log(t("cmdResult") + data.message);
       }else if(data && data.type === "key_result"){
@@ -615,7 +644,6 @@ function doSend() {
   box.focus();
 }
 document.getElementById("sendBtn").onclick = doSend;
-document.getElementById("sendBtnLeft").onclick = doSend;
 
 
 document.getElementById("clearBtn").onclick = () => {
