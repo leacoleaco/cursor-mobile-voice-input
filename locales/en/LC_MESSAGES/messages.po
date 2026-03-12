@@ -255,3 +255,30 @@ msgstr "Loopback (local only) - 127.0.0.1"
 
 msgid "Language"
 msgstr "Language"
+
+msgid "LLM required for command mode"
+msgstr "LLM required for command mode"
+
+msgid "Input box is empty, cannot modify"
+msgstr "Input box is empty, cannot modify"
+
+msgid "Edit box text too long, cannot execute"
+msgstr "Edit box text too long, cannot execute"
+
+msgid "Failed to read input: {e}"
+msgstr "Failed to read input: {e}"
+
+msgid "Failed to modify text"
+msgstr "Failed to modify text"
+
+msgid "Reading input..."
+msgstr "Reading input..."
+
+msgid "Modifying text..."
+msgstr "Modifying text..."
+
+msgid "Text modified"
+msgstr "Text modified"
+
+msgid "Unknown message type"
+msgstr "Unknown message type"

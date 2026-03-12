@@ -3,7 +3,7 @@ import time
 from typing import Optional
 
 from i18n import _
-from commands import CommandResult, processor
+from command_processor import processor
 from input_control import (
     backspace,
     focus_target,
@@ -53,9 +53,6 @@ def handle_text_replace(text: str, last_sync_text: str | None = None, last_sync_
     Uses last_sync_html when content unchanged to preserve @mentions and HTML refs."""
     text = text or ""
     if server_dedup(text, "text_sync"):
-        return
-    if processor.paused:
-        notify(_("Command execution"), _("Paused - sync"))
         return
     focus_target()
     # Use HTML when content unchanged to preserve Cursor @mentions and refs
@@ -111,25 +108,9 @@ def handle_text(
             notify(_("Test inject failed"), str(e))
         return
 
-    if mode != "cmd":
-        if replace:
-            handle_text_replace(text, last_sync_text, last_sync_html)
-            return
-        if processor.paused:
-            notify(_("Command execution"), _("Paused - {text}").format(text=text))
-            return
-        focus_target()
-        execute_output(text)
-        processor.record_output(text)
+    if replace:
+        handle_text_replace(text, last_sync_text, last_sync_html)
         return
-
-    result: CommandResult = processor.handle(text)
-    if result.output == "":
-        notify("指令执行", result.display_text)
-        return
-
     focus_target()
-    execute_output(result.output)
-
-    if not result.handled and isinstance(result.output, str):
-        processor.record_output(result.output)
+    execute_output(text)
+    processor.record_output(text)

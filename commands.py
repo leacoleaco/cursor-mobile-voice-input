@@ -1,191 +1,94 @@
-"""Voice command parsing and configurable command execution."""
-import re
+"""Voice command handling: LLM analyzes intent and executes the plan."""
 import shlex
 import subprocess
-from dataclasses import dataclass
-from typing import Callable, List, Optional
+import webbrowser
+from typing import Callable, List
 
 import config_store
 from i18n import _
-from settings import CLEAR_BACKSPACE_MAX
+from input_control import focus_target, read_target_input_content
+from llm_assistant import analyze_command_plan, modify_text_via_llm
+from text_handler import handle_text_replace, server_dedup
 
 
-@dataclass
-class CommandResult:
-    handled: bool
-    display_text: str = ""
-    output: object = ""
-
-
-class CommandProcessor:
-    def __init__(self):
-        self.paused = False
-        self.history = []
-        self.alias = {"豆号": "逗号", "都好": "逗号", "据号": "句号", "聚好": "句号", "句点": "句号"}
-        self.punc_map = {"逗号": "，", "句号": "。", "问号": "？", "感叹号": "！", "冒号": "：", "分号": "；", "顿号": "、"}
-
-    def normalize(self, text: str) -> str:
-        text = (text or "").strip()
-        for k, v in self.alias.items():
-            text = text.replace(k, v)
-        return text
-
-    def parse_delete_n(self, text: str):
-        m = re.search(r"(删除|退格)\s*(\d+)\s*(个字|次)?", text)
-        return int(m.group(2)) if m else None
-
-    def handle(self, raw_text: str) -> CommandResult:
-        text = self.normalize(raw_text)
-
-        if text in ["暂停输入", "暂停", "停止输入"]:
-            self.paused = True
-            return CommandResult(True, "⏸ " + _("Paused"), "")
-
-        if text in ["继续输入", "继续", "恢复输入"]:
-            self.paused = False
-            return CommandResult(True, "▶️ " + _("Resumed"), "")
-
-        if self.paused:
-            return CommandResult(True, _("Paused - {text}").format(text=raw_text), "")
-
-        if text in ["换行", "回车", "下一行"]:
-            return CommandResult(True, "↩️ " + _("Newline"), ("__ENTER__", 1))
-
-        if text in self.punc_map:
-            return CommandResult(True, f"⌨️ {text}", self.punc_map[text])
-
-        if text in ["删除上一句", "撤回上一句", "撤销上一句", "删掉上一句"]:
-            if not self.history:
-                return CommandResult(True, "⚠️ " + _("Nothing to delete"), "")
-            last = self.history.pop()
-            return CommandResult(True, "⌫ " + _("Deleted last sentence: {last}").format(last=last), ("__BACKSPACE__", len(last)))
-
-        n = self.parse_delete_n(text)
-        if n is not None:
-            return CommandResult(True, "⌫ " + _("Deleted {n} characters").format(n=n), ("__BACKSPACE__", n))
-
-        if text in ["清空", "清除全部", "全部删除"]:
-            return CommandResult(True, "🧹 " + _("Cleared"), ("__BACKSPACE__", CLEAR_BACKSPACE_MAX))
-
-        return CommandResult(False, raw_text, raw_text)
-
-    def record_output(self, out: str):
-        if out and out != "\n":
-            self.history.append(out)
-
-
-processor = CommandProcessor()
-
-# Canonical command strings for LLM (built-in + aliases collapsed to canonical)
-BUILTIN_CANDIDATES = [
-    "暂停输入",
-    "继续输入",
-    "换行",
-    "逗号", "句号", "问号", "感叹号", "冒号", "分号", "顿号",
-    "删除上一句",
-    "删除 N 个字",  # LLM matches "删3个字" etc.; we parse N from raw text
-    "清空",
-]
-
-
-def get_all_command_candidates() -> List[str]:
-    """All command candidates for LLM: built-in + config match-strings."""
-    candidates = list(BUILTIN_CANDIDATES)
-    for cmd in config_store.COMMANDS:
-        ms = (cmd.get("match-string") or "").strip()
-        if ms and ms not in candidates:
-            candidates.append(ms)
-    return candidates
-
-
-def _build_command_args(command, args) -> List[str]:
-    if isinstance(command, str) and command.strip():
-        parts = shlex.split(command, posix=False)
-    elif isinstance(command, list):
-        parts = [str(x) for x in command if str(x).strip()]
-    else:
-        parts = []
-
-    if isinstance(args, list):
-        parts.extend([str(x) for x in args if str(x).strip()])
-    return parts
-
-
-def match_command(text: str) -> Optional[dict]:
-    text = (text or "").strip()
-    if not text:
-        return None
-    for cmd in config_store.COMMANDS:
-        match_string = (cmd.get("match-string") or "").strip()
-        if match_string and match_string == text:
-            return cmd
-    # LLM-assisted fuzzy matching when exact match fails
-    if config_store.LLM_ENABLED and config_store.COMMANDS:
-        try:
-            from llm_assistant import resolve_command_via_llm
-            candidates = [
-                (c.get("match-string") or "").strip()
-                for c in config_store.COMMANDS
-                if (c.get("match-string") or "").strip()
-            ]
-            if candidates:
-                resolved = resolve_command_via_llm(
-                    text, candidates,
-                    model=config_store.LLM_MODEL,
-                    base_url=config_store.LLM_BASE_URL,
-                )
-                if resolved:
-                    for cmd in config_store.COMMANDS:
-                        if (cmd.get("match-string") or "").strip() == resolved:
-                            return cmd
-        except Exception:
-            pass
-    return None
-
-
-def execute_config_command_by_match_string(match_string: str) -> CommandResult:
-    """Execute a config command by its match-string."""
+def _run_config_command(match_string: str) -> dict:
+    """Execute a config command by match-string. Returns {ok, message}."""
     for cmd in config_store.COMMANDS:
         ms = (cmd.get("match-string") or "").strip()
         if ms == match_string:
-            args = _build_command_args(cmd.get("command"), cmd.get("args"))
-            if not args:
-                return CommandResult(True, _("Command config error") + f": {match_string}", {"ok": False, "message": _("Command config error")})
+            command = cmd.get("command")
+            args = cmd.get("args") or []
+            if isinstance(command, str) and command.strip():
+                parts = shlex.split(command, posix=False)
+            elif isinstance(command, list):
+                parts = [str(x) for x in command if str(x).strip()]
+            else:
+                return {"ok": False, "message": _("Command config error")}
+            parts.extend([str(x) for x in args if str(x).strip()])
+            if not parts:
+                return {"ok": False, "message": _("Command config error")}
             try:
-                completed = subprocess.run(args, capture_output=True, text=True)
+                completed = subprocess.run(parts, capture_output=True, text=True, timeout=60)
                 ok = completed.returncode == 0
                 stderr = (completed.stderr or "").strip()
-                msg = (_("Command executed successfully") if ok else _("Command execution failed")) + f": {match_string}" + ("" if ok else f" (exit {completed.returncode})")
+                msg = (_("Command executed successfully") if ok else _("Command execution failed")) + f": {match_string}"
+                if not ok:
+                    msg += f" (exit {completed.returncode})"
                 if stderr:
                     msg = f"{msg} - {stderr}"
-                return CommandResult(True, msg, {"ok": ok, "message": msg})
+                return {"ok": ok, "message": msg}
+            except subprocess.TimeoutExpired:
+                return {"ok": False, "message": _("Command execution timeout") + f": {match_string}"}
             except Exception as e:
-                return CommandResult(True, _("Command execution error") + f": {match_string} - {e}", {"ok": False, "message": str(e)})
-    return CommandResult(True, _("Command not found") + f": {match_string}", {"ok": False, "message": _("Command not found") + f": {match_string}"})
+                return {"ok": False, "message": _("Command execution error") + f": {match_string} - {e}"}
+    return {"ok": False, "message": _("Command not found") + f": {match_string}"}
 
 
-def execute_command(text: str) -> CommandResult:
-    cmd = match_command(text)
-    if not cmd:
-        return CommandResult(True, _("No matching command") + f": {text}", {"ok": False, "message": _("No matching command")})
-
-    args = _build_command_args(cmd.get("command"), cmd.get("args"))
-    if not args:
-        return CommandResult(True, _("Command config error") + f": {text}", {"ok": False, "message": _("Command config error")})
-
+def _run_app(app_path: str, app_args: List[str]) -> dict:
+    """Open application. app_path can be name (notepad, calc) or full path."""
+    path = (app_path or "").strip()
+    if not path:
+        return {"ok": False, "message": _("No application specified")}
+    args = [str(x) for x in (app_args or []) if str(x).strip()]
+    parts = [path] + args
     try:
-        completed = subprocess.run(args, capture_output=True, text=True)
-        ok = completed.returncode == 0
-        stderr = (completed.stderr or "").strip()
-        if ok:
-            msg = _("Command executed successfully") + f": {text}"
-        else:
-            msg = _("Command execution failed") + f": {text} (exit {completed.returncode})"
-            if stderr:
-                msg = f"{msg} - {stderr}"
-        return CommandResult(True, msg, {"ok": ok, "message": msg})
+        subprocess.Popen(parts, shell=False)
+        return {"ok": True, "message": _("Application opened") + f": {path}"}
+    except FileNotFoundError:
+        try:
+            subprocess.Popen(parts, shell=True)
+            return {"ok": True, "message": _("Application opened") + f": {path}"}
+        except Exception as e:
+            return {"ok": False, "message": _("Failed to open application") + f": {e}"}
     except Exception as e:
-        return CommandResult(True, _("Command execution error") + f": {text} - {e}", {"ok": False, "message": _("Command execution error") + f": {e}"})
+        return {"ok": False, "message": _("Failed to open application") + f": {e}"}
+
+
+def _run_browser(url: str = None, search_query: str = None) -> dict:
+    """Open browser with URL or search query."""
+    if url:
+        u = (url or "").strip()
+        if not u.startswith(("http://", "https://")):
+            u = "https://" + u
+        try:
+            webbrowser.open(u)
+            return {"ok": True, "message": _("Browser opened") + f": {u}"}
+        except Exception as e:
+            return {"ok": False, "message": _("Failed to open browser") + f": {e}"}
+    if search_query:
+        q = (search_query or "").strip()
+        if q:
+            encoded = __import__("urllib.parse").quote(q)
+            u = f"https://www.google.com/search?q={encoded}"
+            try:
+                webbrowser.open(u)
+                return {"ok": True, "message": _("Browser search") + f": {q}"}
+            except Exception as e:
+                return {"ok": False, "message": _("Failed to open browser") + f": {e}"}
+    return {"ok": False, "message": _("No URL or search query specified")}
+
+
+MODIFY_TEXT_MAX_CHARS = 5000
 
 
 def handle_command_with_llm(
@@ -194,156 +97,137 @@ def handle_command_with_llm(
     send_result: Callable[[dict], None],
 ) -> None:
     """
-    Handle command mode with LLM judgment and progress visualization.
-    When LLM disabled, falls back to exact match + built-in processor.
+    Handle command mode: LLM analyzes sentence -> generate execution plan -> execute.
+    Supports:
+    1. modify_text - Edit text in focused input (e.g. "change xx to xxx")
+    2. open_app - Open software and optionally execute (e.g. "open notepad")
+    3. open_browser - Open browser and execute (e.g. "open browser search xxx")
+    4. execute_config - Run configured command from config
     """
     text = (raw_text or "").strip()
     if not text:
         return
 
-    print(f"[cmd] 收到命令: {text}")
+    print(f"[cmd] received: {text}")
 
-    from text_handler import server_dedup
     if server_dedup(text, "cmd"):
-        print("[cmd] 去重跳过")
+        print("[cmd] dedup skip")
         return
 
     if not config_store.LLM_ENABLED:
-        # Fallback: exact match for config, then built-in processor
-        cmd = match_command(text)
-        if cmd:
-            ms = (cmd.get("match-string") or "").strip()
-            print(f"[cmd] matched: {ms}")
-            send_progress({"type": "cmd_progress", "step": "matched", "message": _("Matched: {ms}").format(ms=ms)})
-            result = execute_command(text)
-            print(f"[cmd] result: {result.output.get('message') if isinstance(result.output, dict) else result.display_text}")
-            send_result({
-                "type": "cmd_result",
-                "string": text,
-                "ok": bool(result.output.get("ok")) if isinstance(result.output, dict) else False,
-                "message": result.output.get("message") if isinstance(result.output, dict) else result.display_text,
-            })
-            return
-        # Built-in processor
-        result = processor.handle(text)
-        if result.output == "":
-            print(f"[cmd] done: {result.display_text}")
-            send_progress({"type": "cmd_progress", "step": "done", "message": result.display_text})
-            send_result({"type": "cmd_result", "string": text, "ok": True, "message": result.display_text})
-            return
-        # Execute output (backspace, enter, or text)
-        from text_handler import execute_output
-        from input_control import focus_target
-        focus_target()
-        execute_output(result.output)
-        if not result.handled and isinstance(result.output, str):
-            processor.record_output(result.output)
-        print(f"[cmd] done: {result.display_text}")
-        send_progress({"type": "cmd_progress", "step": "done", "message": result.display_text})
-        send_result({"type": "cmd_result", "string": text, "ok": True, "message": result.display_text})
+        send_progress({"type": "cmd_progress", "step": "error", "message": _("LLM required for command mode")})
+        send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("LLM required for command mode")})
         return
 
-    # LLM-enabled path: first try local matching, then LLM only when no match
-    # Step 1: Try built-in processor
-    result = processor.handle(text)
-    if result.handled:
-        if result.output == "":
-            print(f"[cmd] done (local): {result.display_text}")
-            send_progress({"type": "cmd_progress", "step": "done", "message": result.display_text})
-            send_result({"type": "cmd_result", "string": text, "ok": True, "message": result.display_text})
-            return
-        from text_handler import execute_output
-        from input_control import focus_target
-        focus_target()
-        execute_output(result.output)
-        if not result.handled and isinstance(result.output, str):
-            processor.record_output(result.output)
-        print(f"[cmd] done (local): {result.display_text}")
-        send_progress({"type": "cmd_progress", "step": "done", "message": result.display_text})
-        send_result({"type": "cmd_result", "string": text, "ok": True, "message": result.display_text})
-        return
-
-    # Step 2: Try exact match on config commands
-    for cmd in config_store.COMMANDS:
-        match_string = (cmd.get("match-string") or "").strip()
-        if match_string and match_string == text:
-            print(f"[cmd] matched (local): {match_string}")
-            send_progress({"type": "cmd_progress", "step": "matched", "message": _("Matched: {ms}").format(ms=match_string)})
-            result = execute_config_command_by_match_string(match_string)
-            msg = result.output.get("message") if isinstance(result.output, dict) else result.display_text
-            ok = bool(result.output.get("ok")) if isinstance(result.output, dict) else False
-            send_result({"type": "cmd_result", "string": text, "ok": ok, "message": msg})
-            return
-
-    # Step 3: No local match - call LLM for fuzzy matching
-    candidates = get_all_command_candidates()
-    print("[log] candidates: ", candidates)
-    if not candidates:
-        print("[cmd] error: 无可用指令")
-        send_progress({"type": "cmd_progress", "step": "error", "message": _("No commands available")})
-        send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("No commands available")})
-        return
+    config_match_strings = [
+        (c.get("match-string") or "").strip()
+        for c in config_store.COMMANDS
+        if (c.get("match-string") or "").strip()
+    ]
 
     def on_progress(step: str, msg: str):
         print(f"[cmd] {step}: {msg}")
         send_progress({"type": "cmd_progress", "step": step, "message": msg})
 
     def on_stream(accumulated: str):
-        print(f"[cmd] 大模型输出: {accumulated}", flush=True)
-        send_progress({"type": "cmd_progress", "step": "llm_stream", "message": accumulated})
-        send_progress({"type": "cmd_progress", "step": "llm_stream", "message": accumulated})
+        if accumulated:
+            send_progress({"type": "cmd_progress", "step": "llm_stream", "message": accumulated})
+
+    on_progress("llm_judging", _("Using LLM to analyze..."))
 
     try:
-        from llm_assistant import resolve_command_with_progress
-        resolved = resolve_command_with_progress(
-            text, candidates,
+        plan = analyze_command_plan(
+            text,
+            config_match_strings,
             model=config_store.LLM_MODEL,
             base_url=config_store.LLM_BASE_URL,
-            on_progress=on_progress,
             on_stream=on_stream,
         )
     except Exception as e:
-        print(f"[cmd] error: LLM 异常 - {e}")
+        print(f"[cmd] LLM error: {e}")
         on_progress("error", str(e))
         send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("LLM error: {e}").format(e=e)})
         return
 
-    if not resolved:
-        print(f"[cmd] 未匹配到指令: {text}")
-        send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("No command matched")})
+    intent = (plan.get("intent") or "unknown").strip().lower()
+    print(f"[cmd] intent: {intent}")
+
+    # --- modify_text ---
+    if intent == "modify_text":
+        instruction = plan.get("instruction") or text
+        on_progress("reading", _("Reading input..."))
+        try:
+            input_text, input_html = read_target_input_content()
+        except Exception as e:
+            print(f"[cmd] read_target error: {e}")
+            send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("Failed to read input: {e}").format(e=e)})
+            return
+
+        input_text = (input_text or "").strip()
+        if not input_text:
+            send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("Input box is empty, cannot modify")})
+            return
+
+        if len(input_text) > MODIFY_TEXT_MAX_CHARS:
+            send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("Edit box text too long, cannot execute")})
+            return
+
+        on_progress("modifying", _("Modifying text..."))
+        try:
+            modified = modify_text_via_llm(
+                instruction=instruction,
+                input_text=input_text,
+                model=config_store.LLM_MODEL,
+                base_url=config_store.LLM_BASE_URL,
+                on_stream=on_stream,
+            )
+        except Exception as e:
+            print(f"[cmd] modify_text LLM error: {e}")
+            send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("LLM error: {e}").format(e=e)})
+            return
+
+        if modified is None:
+            send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("Failed to modify text")})
+            return
+
+        focus_target()
+        handle_text_replace(modified, last_sync_text=input_text, last_sync_html=input_html)
+        on_progress("done", _("Text modified"))
+        send_result({"type": "cmd_result", "string": text, "ok": True, "message": _("Text modified")})
         return
 
-    # Execute: config command or built-in
-    print(f"[cmd] executing: {resolved}")
-    send_progress({"type": "cmd_progress", "step": "executing", "message": _("Executing: {resolved}").format(resolved=resolved)})
-
-    if resolved in [(c.get("match-string") or "").strip() for c in config_store.COMMANDS if (c.get("match-string") or "").strip()]:
-        result = execute_config_command_by_match_string(resolved)
-        msg = result.output.get("message") if isinstance(result.output, dict) else result.display_text
-        ok = bool(result.output.get("ok")) if isinstance(result.output, dict) else False
-        print(f"[cmd] result: {msg}" + (" (失败)" if not ok else ""))
-        send_result({
-            "type": "cmd_result",
-            "string": text,
-            "ok": ok,
-            "message": msg,
-        })
+    # --- execute_config ---
+    if intent == "execute_config":
+        match_string = plan.get("match_string", "").strip()
+        if not match_string:
+            send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("No command matched")})
+            return
+        on_progress("executing", _("Executing: {resolved}").format(resolved=match_string))
+        result = _run_config_command(match_string)
+        send_result({"type": "cmd_result", "string": text, "ok": result.get("ok", False), "message": result.get("message", "")})
         return
 
-    # Built-in: use raw text for "删除 N 个字" so we can parse the number
-    exec_text = text if resolved == "删除 N 个字" else resolved
-    result = processor.handle(exec_text)
-    if result.output == "":
-        print(f"[cmd] done: {result.display_text}")
-        send_progress({"type": "cmd_progress", "step": "done", "message": result.display_text})
-        send_result({"type": "cmd_result", "string": text, "ok": True, "message": result.display_text})
+    # --- open_app ---
+    if intent == "open_app":
+        app_path = plan.get("app_path", "").strip()
+        app_args = plan.get("app_args")
+        if isinstance(app_args, list):
+            app_args = [str(x) for x in app_args if str(x).strip()]
+        else:
+            app_args = []
+        on_progress("executing", _("Opening application: {app}").format(app=app_path or "..."))
+        result = _run_app(app_path, app_args)
+        send_result({"type": "cmd_result", "string": text, "ok": result.get("ok", False), "message": result.get("message", "")})
         return
-    from text_handler import execute_output
-    from input_control import focus_target
-    focus_target()
-    execute_output(result.output)
-    if not result.handled and isinstance(result.output, str):
-        processor.record_output(result.output)
-    print(f"[cmd] done: {result.display_text}")
-    send_progress({"type": "cmd_progress", "step": "done", "message": result.display_text})
-    send_result({"type": "cmd_result", "string": text, "ok": True, "message": result.display_text})
+
+    # --- open_browser ---
+    if intent == "open_browser":
+        url = plan.get("url", "").strip()
+        search_query = plan.get("search_query", "").strip()
+        on_progress("executing", _("Opening browser..."))
+        result = _run_browser(url=url if url else None, search_query=search_query if search_query else None)
+        send_result({"type": "cmd_result", "string": text, "ok": result.get("ok", False), "message": result.get("message", "")})
+        return
+
+    # --- unknown ---
+    send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("No command matched")})

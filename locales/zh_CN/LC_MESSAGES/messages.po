@@ -255,3 +255,30 @@ msgstr "本机回环（仅本机可用） - 127.0.0.1"
 
 msgid "Language"
 msgstr "语言"
+
+msgid "LLM required for command mode"
+msgstr "命令模式需要启用 LLM"
+
+msgid "Input box is empty, cannot modify"
+msgstr "输入框为空，无法修改"
+
+msgid "Edit box text too long, cannot execute"
+msgstr "编辑框文本过长，无法执行"
+
+msgid "Failed to read input: {e}"
+msgstr "读取输入失败：{e}"
+
+msgid "Failed to modify text"
+msgstr "修改文本失败"
+
+msgid "Reading input..."
+msgstr "正在读取输入..."
+
+msgid "Modifying text..."
+msgstr "正在修改文本..."
+
+msgid "Text modified"
+msgstr "文本已修改"
+
+msgid "Unknown message type"
+msgstr "不存在的消息类型"

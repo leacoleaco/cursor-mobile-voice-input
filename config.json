@@ -1,36 +1,9 @@
 {
   "user_ip": null,
-  "commands": [
-    {
-      "name": "Network Diagnostics",
-      "description": "Run a series of network diagnostic commands to check connectivity and performance.",
-      "match-string": "ping",
-      "command": "ping",
-      "args": [
-        "-c",
-        "4",
-        "google.com"
-      ]
-    },
-    {
-      "name": "Open File Transfer Software",
-      "description": "Open file transfer software",
-      "match-string": "open file transfer",
-      "command": "E:\\soft\\LocalSend\\localsend_app.exe",
-      "args": []
-    },
-    {
-      "name": "Open OpenCode",
-      "description": "Open OpenCode",
-      "match-string": "open OpenCode",
-      "command": "E:\\soft\\opencode\\opencode.exe",
-      "args": []
-    }
-  ],
   "llm_enabled": true,
   "llm_model": "qwen3.5:0.8b",
   "llm_base_url": "http://127.0.0.1:11434",
-  "access_token": "119398d97975ed26bebe48b9c92aa0905b5deaae0c946e54837551f392ebdf86",
+  "access_token": "4326e21108014aae6cc1f6bd938c5f8dbde579087b5edbf71621e7c4c14890a1",
   "auth_required": true,
   "locale": "zh_CN"
 }

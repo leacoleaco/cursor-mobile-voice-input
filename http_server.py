@@ -302,14 +302,20 @@ def create_app(get_url_state):
                         except Exception:
                             pass
                 else:
-                    replace = bool(payload.get("replace", False))
-                    handle_text(
-                        str(content or ""),
-                        mode="text",
-                        replace=replace,
-                        last_sync_text=_LAST_SYNC_TEXT if replace else None,
-                        last_sync_html=_LAST_SYNC_HTML if replace else None,
-                    )
+                    err_msg = _("Unknown message type")
+                    err_html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;font-family:sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f5f5;padding:20px;">
+  <div style="background:#fff;border-radius:14px;padding:28px;max-width:320px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.1);">
+    <p style="margin:0;font-size:16px;color:#c0392b;">⚠️ {err_msg}</p>
+  </div>
+</body>
+</html>"""
+                    try:
+                        ws.send(json.dumps({"type": "unknown_msg_type", "message": err_msg, "html": err_html}, ensure_ascii=False))
+                    except Exception:
+                        pass
 
         except Exception:
             pass

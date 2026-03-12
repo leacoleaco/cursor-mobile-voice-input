@@ -67,7 +67,7 @@
     .shortcut-arrows .arrow-left { grid-column: 1; grid-row: 2; }
     .shortcut-arrows .arrow-down { grid-column: 2; grid-row: 2; }
     .shortcut-arrows .arrow-right { grid-column: 3; grid-row: 2; }
-    .shortcut-punctuation { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex-shrink: 0; }
+    .shortcut-punctuation { display: flex; flex-direction: column; gap: 6px; align-items: center; flex-shrink: 0; }
     .shortcut-btn-punc { min-width: 44px; min-height: 44px; padding: 10px 12px; font-size: 18px; }
     .shortcut-mouse-zone { flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; }
     .shortcut-mouse-trackpad { width: 150px; height: 150px; flex-shrink: 0; border: 2px solid #4a90d9; border-radius: 10px; background: linear-gradient(145deg, #e8e8e8 0%, #d8d8d8 100%); touch-action: none; user-select: none; position: relative; overflow: hidden; }
@@ -97,18 +97,13 @@
     body.mode-keyboard .hint { display: none; }
     body.mode-keyboard #llmStream { display: none; }
     body.mode-keyboard #clipboardPanel { display: none; }
-    body.mode-cmd .status-row { display: none; }
-    body.mode-cmd .hint { display: none; }
-    body.mode-cmd .mode-row { display: none; }
     body.mode-cmd .send-mode-switch { display: none; }
-    body.mode-cmd .shortcut-keys { display: none; }
-    body.mode-cmd #llmStream { display: none; }
-    body.mode-cmd #clipboardPanel { display: none; }
     body.mode-cmd .send-btn-float-top-left { display: none; }
     body.mode-cmd .send-btn-float-top-right { display: none; }
-    body.mode-cmd #sendBtnLeft { display: none; }
     body.mode-cmd .send-buttons-row button[data-key="shift+enter"] { display: none; }
     body.mode-cmd .send-buttons-row button[data-key="enter"] { display: none; }
+    body.mode-cmd .shortcut-arrows { display: none; }
+    body.mode-cmd .shortcut-punctuation { display: none; }
     .mouse-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
     .mouse-actions button { margin-top: 0; }
     .mouse-trackpad-wrap { margin-top: 12px; min-height: 280px; border: 2px solid #4a90d9; border-radius: 12px; background: linear-gradient(145deg, #e8e8e8 0%, #d8d8d8 100%); touch-action: none; user-select: none; -webkit-user-select: none; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
@@ -186,18 +181,15 @@
     </div>
     <div class="shortcut-keys">
       <div class="shortcut-row shortcut-row-inline">
+        <div class="shortcut-punctuation">
+          <button class="shortcut-btn shortcut-btn-punc" data-key="space" data-i18n-title="space" title="空格">␣</button>
+          <button class="shortcut-btn shortcut-btn-punc" data-key="," title="逗号">,</button>
+        </div>
         <div class="shortcut-arrows">
           <button class="shortcut-btn arrow-up" data-key="up" data-i18n-title="arrowUp" title="上">↑</button>
           <button class="shortcut-btn arrow-left" data-key="left" data-i18n-title="arrowLeft" title="左">←</button>
           <button class="shortcut-btn arrow-down" data-key="down" data-i18n-title="arrowDown" title="下">↓</button>
           <button class="shortcut-btn arrow-right" data-key="right" data-i18n-title="arrowRight" title="右">→</button>
-        </div>
-        <div class="shortcut-punctuation">
-          <button class="shortcut-btn shortcut-btn-punc" data-key="space" data-i18n-title="space" title="空格">␣</button>
-          <button class="shortcut-btn shortcut-btn-punc" data-key="," title="逗号">,</button>
-          <button class="shortcut-btn shortcut-btn-punc" data-key="." title="句号">.</button>
-          <button class="shortcut-btn shortcut-btn-punc" data-key=":" title="冒号">:</button>
-          <button class="shortcut-btn shortcut-btn-punc" data-key=";" title="分号">;</button>
         </div>
         <div class="shortcut-mouse-zone">
           <div id="shortcutMouseTrackpad" class="shortcut-mouse-trackpad" data-i18n-title="mouseTrackpad" title="鼠标区域：滑动移动光标 · 单击左键 · 长按右键"><span class="trackpad-hint" data-i18n="trackpadLabel">鼠标区域 · 滑动·单击·长按右键</span></div>
@@ -539,6 +531,8 @@ async function connectWS(){
           const preview = data.string.length > 80 ? data.string.slice(0,80) + "..." : data.string;
           log(t("clipboardPreview") + preview);
         }
+      }else if(data && data.type === "unknown_msg_type"){
+        log("⚠️ " + (data.message || "Unknown message type"));
       }
     }catch(e){
       log(t("invalidJson") + e);
