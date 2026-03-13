@@ -408,3 +408,9 @@ msgstr "SSH tunnel is not available in this build."
 
 msgid "Local access (this machine only)"
 msgstr "Local access (this machine only)"
+
+msgid "Connected devices: {n}"
+msgstr "Connected devices: {n}"
+
+msgid "LAN Voice Input — {n} connected"
+msgstr "LAN Voice Input — {n} connected"

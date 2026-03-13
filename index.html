@@ -684,9 +684,12 @@ function scheduleWsRetry(){
   }, delay);
 }
 (async function init(){
-  await loadI18n();
+  // Start WebSocket immediately in parallel with i18n loading so the TCP
+  // handshake begins as early as possible (avoids the ~46s first-connect
+  // delay caused by cold NAT/tunnel path on public networks).
   connectWS();
   updateConnectionUI();
+  await loadI18n();
 })();
 
 (function(){

@@ -140,6 +140,7 @@ def main():
         get_config_path=lambda: CONFIG_PATH_IN_USE,
         list_candidates=get_ipv4_candidates,
         ssh_tunnel=ssh_tunnel,
+        get_connection_count=lambda: __import__("http_server").get_connection_count(),
         dev_mode=dev_mode,
         dev_close_event=dev_close_event,
     )
@@ -188,6 +189,8 @@ def main():
 
     if dev_mode:
         # 调试模式：不显示托盘，仅 QR 窗口；关闭窗口即退出
+        from http_server import set_on_client_count_change
+        set_on_client_count_change(qr_mgr.update_connection_count)
         dev_close_event.wait()
     else:
         # 仅开发模式+reloader 时：父进程 sleep 避免双托盘；打包 exe 时 dev_mode=False，直接显示托盘

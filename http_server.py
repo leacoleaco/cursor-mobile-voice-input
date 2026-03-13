@@ -72,6 +72,19 @@ CLIENT_COUNT = 0
 CLIENT_LOCK = threading.Lock()
 WS_CLIENTS: Set = set()
 WS_LOCK = threading.Lock()
+_ON_CLIENT_COUNT_CHANGE = None  # Callable[[int], None]
+
+
+def get_connection_count() -> int:
+    """Return the current number of active WebSocket connections."""
+    with WS_LOCK:
+        return len(WS_CLIENTS)
+
+
+def set_on_client_count_change(callback):
+    """Register a callback invoked (from a bg thread) whenever connection count changes."""
+    global _ON_CLIENT_COUNT_CHANGE
+    _ON_CLIENT_COUNT_CHANGE = callback
 
 # Last sync content for preserving @mentions/HTML when pasting back unchanged
 _LAST_SYNC_TEXT: str = ""
@@ -237,10 +250,16 @@ def create_app(get_url_state):
         with CLIENT_LOCK:
             CLIENT_COUNT += 1
             c = CLIENT_COUNT
-        notify(_("Phone connected"), _("Connections: {c} (port:{port})").format(c=c, port=PORT))
         with WS_LOCK:
             WS_CLIENTS.add(ws)
-        print(f"[ws] client connected, total={len(WS_CLIENTS)}")
+        _count = len(WS_CLIENTS)
+        notify(_("Phone connected"), _("Connections: {c} (port:{port})").format(c=_count, port=PORT))
+        print(f"[ws] client connected, total={_count}")
+        if _ON_CLIENT_COUNT_CHANGE:
+            try:
+                _ON_CLIENT_COUNT_CHANGE(_count)
+            except Exception:
+                pass
 
         try:
             while True:
@@ -344,8 +363,14 @@ def create_app(get_url_state):
             with CLIENT_LOCK:
                 CLIENT_COUNT -= 1
                 c = CLIENT_COUNT
-            notify(_("Phone disconnected"), _("Connections: {c}").format(c=c))
-            print(f"[ws] client disconnected, total={len(WS_CLIENTS)}")
+            _count = len(WS_CLIENTS)
+            notify(_("Phone disconnected"), _("Connections: {c}").format(c=_count))
+            print(f"[ws] client disconnected, total={_count}")
+            if _ON_CLIENT_COUNT_CHANGE:
+                try:
+                    _ON_CLIENT_COUNT_CHANGE(_count)
+                except Exception:
+                    pass
 
     return app
 

@@ -408,3 +408,9 @@ msgstr "此版本不支持 SSH 隧道。"
 
 msgid "Local access (this machine only)"
 msgstr "本机访问（仅本机可用）"
+
+msgid "Connected devices: {n}"
+msgstr "已连接设备：{n}"
+
+msgid "LAN Voice Input — {n} connected"
+msgstr "LAN 语音输入 — 已连接 {n}"

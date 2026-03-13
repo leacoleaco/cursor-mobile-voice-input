@@ -327,7 +327,9 @@ class SSHTunnelManager:
                 retry_count = 0
 
                 while not self._stop_event.is_set() and self._transport.is_active():
-                    chan = self._transport.accept(1.0)
+                    # Use a short timeout so new connections are picked up
+                    # quickly (reduces per-connection latency vs the old 1.0s).
+                    chan = self._transport.accept(0.05)
                     if chan is None:
                         continue
                     thr = threading.Thread(

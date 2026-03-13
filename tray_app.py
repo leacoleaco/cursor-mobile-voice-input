@@ -17,6 +17,24 @@ CLIPBOARD_LAST_TEXT = ""
 CLIPBOARD_LAST_TIME = 0.0
 QR_MANAGER = None
 TRAY_ICON = None
+_CONN_COUNT = 0
+
+
+def _tray_title() -> str:
+    return _("LAN Voice Input — {n} connected").format(n=_CONN_COUNT) if _CONN_COUNT > 0 else "LAN Voice Input"
+
+
+def on_client_count_change(count: int):
+    """Called from a background thread when WebSocket connection count changes."""
+    global _CONN_COUNT
+    _CONN_COUNT = count
+    if TRAY_ICON:
+        try:
+            TRAY_ICON.title = _tray_title()
+        except Exception:
+            pass
+    if QR_MANAGER:
+        QR_MANAGER.update_connection_count(count)
 
 
 def request_quit():
@@ -70,7 +88,11 @@ def run_tray(qr_manager):
         item(_("Show QR code"), tray_show_qr),
         item(_("Quit"), tray_quit),
     )
-    tray_icon = pystray.Icon("CursorMobileVoiceInput", Image.open(image_path), "LAN Voice Input", menu)
+    tray_icon = pystray.Icon("CursorMobileVoiceInput", Image.open(image_path), _tray_title(), menu)
     TRAY_ICON = tray_icon
     set_tray_icon(tray_icon)
+
+    from http_server import set_on_client_count_change
+    set_on_client_count_change(on_client_count_change)
+
     tray_icon.run()

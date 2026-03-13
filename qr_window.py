@@ -33,6 +33,7 @@ class QRWindowManager:
         build_url_for_ip: Optional[Callable[[str], str]] = None,
         ssh_tunnel=None,
         on_locale_change: Optional[Callable[[], None]] = None,
+        get_connection_count: Optional[Callable[[], int]] = None,
         dev_mode: bool = False,
         dev_close_event: Optional[threading.Event] = None,
     ):
@@ -46,6 +47,7 @@ class QRWindowManager:
         self.get_config_path = get_config_path
         self.list_candidates = list_candidates
         self.ssh_tunnel = ssh_tunnel
+        self.get_connection_count = get_connection_count
         self.dev_mode = dev_mode
         self.dev_close_event = dev_close_event
 
@@ -73,6 +75,10 @@ class QRWindowManager:
         if self.top and self.img_label:
             self._refresh_qr_and_text()
 
+    def update_connection_count(self, count: int):
+        """Thread-safe: update the connection count display."""
+        self.cmd_q.put(("conn_count", count))
+
     def _tk_thread(self):
         self.root = tk.Tk()
         self.root.withdraw()
@@ -93,6 +99,7 @@ class QRWindowManager:
         self.img_label = None
         self.url_label = None
         self.tip_label = None
+        self.conn_label = None
         self.log_text = None
         self.lang_combo = None
         self.lang_var = None
@@ -114,6 +121,8 @@ class QRWindowManager:
                         data()
                     except Exception:
                         pass
+                elif cmd == "conn_count":
+                    self._update_conn_label(data)
         except queue.Empty:
             pass
         while True:
@@ -123,6 +132,18 @@ class QRWindowManager:
             except queue.Empty:
                 break
         self.root.after(100, self._poll_queue)
+
+    def _update_conn_label(self, count: int):
+        """Update connection count label in the window (called from Tk thread)."""
+        if self.top and self.conn_label:
+            try:
+                color = "#2ecc71" if count > 0 else "#888"
+                self.conn_label.configure(
+                    text=_("Connected devices: {n}").format(n=count),
+                    foreground=color,
+                )
+            except Exception:
+                pass
 
     def _append_log(self, msg: str):
         if self.top and hasattr(self, "log_text") and self.log_text:
@@ -162,6 +183,7 @@ class QRWindowManager:
             self.img_label = None
             self.url_label = None
             self.tip_label = None
+            self.conn_label = None
             self.log_text = None
             self.root.quit()
             if self.dev_close_event:
@@ -191,6 +213,7 @@ class QRWindowManager:
         self.img_label = None
         self.url_label = None
         self.tip_label = None
+        self.conn_label = None
         self.log_text = None
 
     def _ensure_window(self):
@@ -276,6 +299,20 @@ class QRWindowManager:
 
         self.tip_label = ttk.Label(self.top, font=("Arial", 10), foreground="#333", justify="center")
         self.tip_label.pack(padx=10, pady=(0, 6))
+
+        self.conn_label = ttk.Label(self.top, font=("Arial", 11, "bold"), foreground="#888")
+        self.conn_label.pack(padx=10, pady=(0, 4))
+        # Populate immediately if count is available
+        if self.get_connection_count:
+            try:
+                _n = self.get_connection_count()
+                _color = "#2ecc71" if _n > 0 else "#888"
+                self.conn_label.configure(
+                    text=_("Connected devices: {n}").format(n=_n),
+                    foreground=_color,
+                )
+            except Exception:
+                pass
 
         log_frame = ttk.LabelFrame(self.top, text=_("Log"), padding=4)
         log_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
