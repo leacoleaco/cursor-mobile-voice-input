@@ -104,6 +104,8 @@ class QRWindowManager:
         self.lang_combo = None
         self.lang_var = None
         self._header_widgets = {}  # for refresh
+        self._loading_after_id = None
+        self._loading_dot_count = 0
 
         self.root.after(100, self._poll_queue)
         self.root.mainloop()
@@ -165,6 +167,7 @@ class QRWindowManager:
                 pass
 
     def _close_window(self):
+        self._stop_loading_animation()
         if self.dev_mode:
             if self.top is not None:
                 try:
@@ -291,6 +294,11 @@ class QRWindowManager:
         cb_bg.pack(side="left", padx=(6, 0))
         self._header_widgets["cb_run_in_bg"] = cb_bg
 
+        self.ssl_var = tk.BooleanVar(value=config_store.SSL_ENABLED)
+        cb_ssl = ttk.Checkbutton(toolbar, text=_("HTTPS/WSS (self-signed TLS)"), variable=self.ssl_var, command=self._on_ssl_changed)
+        cb_ssl.pack(side="left", padx=(6, 0))
+        self._header_widgets["cb_ssl"] = cb_ssl
+
         self.img_label = ttk.Label(self.top)
         self.img_label.pack(padx=10, pady=10)
 
@@ -377,6 +385,15 @@ class QRWindowManager:
         config_store.RUN_IN_BACKGROUND = self.run_in_bg_var.get()
         config_store.save_config()
         self._refresh_qr_and_text()
+
+    def _on_ssl_changed(self):
+        """Save SSL setting; warn user that a restart is required."""
+        config_store.SSL_ENABLED = self.ssl_var.get()
+        config_store.save_config()
+        messagebox.showinfo(
+            _("HTTPS/WSS TLS"),
+            _("TLS setting saved. Please restart the application for the change to take effect.\n\nNote: the browser/phone will show a certificate warning for the self-signed cert — tap 'Advanced' → 'Proceed' to continue."),
+        )
 
     def _on_access_mode_changed(self):
         """Handle access mode radio button switch."""
@@ -557,6 +574,10 @@ class QRWindowManager:
         if "btn_tunnel_cfg" in self._header_widgets:
             self._header_widgets["btn_tunnel_cfg"].configure(text=_("Tunnel config"))
         self._header_widgets["cb_run_in_bg"].configure(text=_("Run in background when closed"))
+        if "cb_ssl" in self._header_widgets:
+            self._header_widgets["cb_ssl"].configure(text=_("HTTPS/WSS (self-signed TLS)"))
+        if self.ssl_var:
+            self.ssl_var.set(config_store.SSL_ENABLED)
         # Refresh radio button labels
         for mode_value, label_key in (
             (ACCESS_MODE_LOCAL, "Local (this machine only)"),
@@ -618,14 +639,21 @@ class QRWindowManager:
         dlg.update_idletasks()
         dlg.geometry(f"+{dlg.winfo_screenwidth()//2 - dlg.winfo_reqwidth()//2}+{dlg.winfo_screenheight()//2 - dlg.winfo_reqheight()//2}")
 
+    def _is_public_connecting(self) -> bool:
+        """Return True when in public mode but tunnel is not yet active."""
+        mode = self.access_mode_var.get() if hasattr(self, "access_mode_var") else ACCESS_MODE_LAN
+        if mode != ACCESS_MODE_PUBLIC:
+            return False
+        return not (self.ssh_tunnel and self.ssh_tunnel.is_active())
+
     def _get_url_for_mode(self) -> str:
         """Return URL appropriate for the current access mode."""
         mode = self.access_mode_var.get() if hasattr(self, "access_mode_var") else ACCESS_MODE_LAN
         if mode == ACCESS_MODE_PUBLIC:
             if self.ssh_tunnel and self.ssh_tunnel.is_active():
                 return self.get_payload_url() or ""
-            # Tunnel not active yet — fall back to LAN URL
-            return self._build_url_for_ip(self._selected_ip())
+            # Tunnel not active yet — return empty to show loading
+            return ""
         if mode == ACCESS_MODE_LOCAL:
             return self._build_url_for_ip("127.0.0.1")
         # LAN: use the selected NIC IP
@@ -638,6 +666,22 @@ class QRWindowManager:
         return self.get_payload_url() or ""
 
     def _refresh_qr_and_text(self):
+        mode = self.access_mode_var.get() if hasattr(self, "access_mode_var") else ACCESS_MODE_LAN
+        connecting = self._is_public_connecting()
+
+        if connecting:
+            # Public mode, tunnel not yet active — show loading placeholder
+            self._show_loading_qr()
+            self.url_label.configure(text="")
+            self.tip_label.configure(
+                text=_("Connecting to SSH tunnel, please wait…")
+            )
+            self._start_loading_animation()
+            return
+
+        # Stop any running loading animation once tunnel is up / mode changed
+        self._stop_loading_animation()
+
         url = self._get_url_for_mode()
         if not url:
             return
@@ -648,10 +692,9 @@ class QRWindowManager:
         img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
         self.tk_img = ImageTk.PhotoImage(img)
 
-        self.img_label.configure(image=self.tk_img)
+        self.img_label.configure(image=self.tk_img, text="", compound="none")
         self.url_label.configure(text=url)
 
-        mode = self.access_mode_var.get() if hasattr(self, "access_mode_var") else ACCESS_MODE_LAN
         if mode == ACCESS_MODE_LOCAL:
             ip_show = "127.0.0.1"
         elif mode == ACCESS_MODE_PUBLIC:
@@ -660,6 +703,8 @@ class QRWindowManager:
             ip_show = self._selected_ip()
         ip_mode = _("Manual") if (self.get_user_ip() and self.get_user_ip().strip()) else _("Auto")
         http_port, ws_port = self.get_ports()
+        scheme = "HTTPS" if config_store.SSL_ENABLED else "HTTP"
+        ws_scheme = "WSS" if config_store.SSL_ENABLED else "WS"
         llm_line = _("LLM: {model} (enabled)").format(model=config_store.LLM_MODEL) if config_store.LLM_ENABLED else _("LLM: disabled")
         if self.dev_mode:
             close_tip = _("Closing this window will exit the app")
@@ -676,11 +721,53 @@ class QRWindowManager:
         self.tip_label.configure(
             text=scan_tip + "\n"
             + _("Mode: {mode}  IP: {ip}").format(mode=ip_mode, ip=ip_show) + "\n"
-            + _("HTTP:{port}  WS:{port}").format(port=http_port) + "\n"
+            + f"{scheme}:{http_port}  {ws_scheme}:{http_port}" + "\n"
             + llm_line + "\n"
             + close_tip + "\n"
             + _("Config file: {path}").format(path=self.get_config_path())
         )
+
+    def _show_loading_qr(self):
+        """Replace QR image area with a grey loading placeholder."""
+        size = 240
+        img = Image.new("RGB", (size, size), color="#e8e8e8")
+        self.tk_img = ImageTk.PhotoImage(img)
+        self.img_label.configure(image=self.tk_img, text="", compound="none")
+
+    # ── Loading animation helpers ─────────────────────────────────────────────
+
+    def _start_loading_animation(self):
+        """Start (or restart) a simple dots animation on tip_label."""
+        if getattr(self, "_loading_after_id", None) is not None:
+            return  # already running
+        self._loading_dot_count = 0
+        self._loading_animate()
+
+    def _stop_loading_animation(self):
+        """Cancel pending loading animation callback."""
+        after_id = getattr(self, "_loading_after_id", None)
+        if after_id is not None:
+            try:
+                self.root.after_cancel(after_id)
+            except Exception:
+                pass
+            self._loading_after_id = None
+
+    def _loading_animate(self):
+        """Tick the dots animation; re-schedules itself until stopped."""
+        if not self._is_public_connecting():
+            self._loading_after_id = None
+            return
+        dots = "." * ((self._loading_dot_count % 3) + 1)
+        self._loading_dot_count += 1
+        if self.top and self.tip_label:
+            try:
+                self.tip_label.configure(
+                    text=_("Connecting to SSH tunnel, please wait") + dots
+                )
+            except Exception:
+                pass
+        self._loading_after_id = self.root.after(500, self._loading_animate)
 
     def _show_window(self):
         self._ensure_window()

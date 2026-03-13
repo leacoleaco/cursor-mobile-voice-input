@@ -153,13 +153,16 @@ def build_urls(
     ws_port: int = None,
     token: Optional[str] = None,
     locale: Optional[str] = None,
+    ssl: bool = False,
 ):
     """Build URLs. ws_port defaults to http_port (same port for HTTP+WebSocket).
     If token is provided, append ?token=xxx so scanned page can use it for auth.
-    If locale is provided, append &lang=xxx so scanned page shows in that language."""
+    If locale is provided, append &lang=xxx so scanned page shows in that language.
+    If ssl is True, use https/wss scheme."""
     if ws_port is None:
         ws_port = http_port
-    base = f"http://{ip}:{http_port}"
+    scheme = "https" if ssl else "http"
+    base = f"{scheme}://{ip}:{http_port}"
     params = []
     if token and token.strip():
         params.append(f"token={token.strip()}")

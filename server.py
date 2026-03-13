@@ -21,7 +21,7 @@ from config_store import CONFIG_PATH_FALLBACK, CONFIG_PATH_IN_USE, CONFIG_PATH_P
 from auth_token import generate_token, get_token, set_token
 from http_server import run_server
 from ip_utils import build_urls, choose_free_port, get_effective_ip, get_ipv4_candidates
-
+from ssl_cert import ensure_cert
 
 def _http_to_ws_url(http_url: str) -> str:
     """Convert http(s) URL to ws(s) URL with /ws path, preserving token param."""
@@ -65,11 +65,26 @@ def main():
 
     port = choose_free_port(DEFAULT_HTTP_PORT)
 
+    # Set up SSL if enabled
+    ssl_context = None
+    if config_store.SSL_ENABLED:
+        cert_path, key_path = ensure_cert()
+        if cert_path and key_path:
+            import ssl as _ssl
+            ssl_context = _ssl.SSLContext(_ssl.PROTOCOL_TLS_SERVER)
+            ssl_context.load_cert_chain(certfile=cert_path, keyfile=key_path)
+            print(f"[SSL] HTTPS/WSS enabled (cert: {cert_path})")
+        else:
+            print("[SSL] WARNING: could not generate certificate; falling back to HTTP/WS")
+
+    _ssl_enabled = ssl_context is not None
+
     qr_ip = "127.0.0.1" if QR_FORCE_LOCALHOST else get_effective_ip(config_store.USER_IP)
     qr_url, qr_payload_url = build_urls(
         qr_ip, port, port,
         token=get_token() if config_store.AUTH_REQUIRED else None,
         locale=config_store.LOCALE,
+        ssl=_ssl_enabled,
     )
 
     def refresh_urls():
@@ -79,6 +94,7 @@ def main():
             qr_ip, port, port,
             token=get_token() if config_store.AUTH_REQUIRED else None,
             locale=config_store.LOCALE,
+            ssl=_ssl_enabled,
         )
         return qr_payload_url
 
@@ -88,6 +104,7 @@ def main():
             ip, port, port,
             token=get_token() if config_store.AUTH_REQUIRED else None,
             locale=config_store.LOCALE,
+            ssl=_ssl_enabled,
         )
         return url
 
@@ -97,6 +114,7 @@ def main():
             return ssh_tunnel.get_public_url(
                 token=get_token() if config_store.AUTH_REQUIRED else None,
                 locale=config_store.LOCALE,
+                ssl=_ssl_enabled,
             )
         return qr_payload_url
 
@@ -158,7 +176,8 @@ def main():
     print("\n======================================")
     print("✅", _("Started"))
     print("📱", _("Open on phone:"), qr_payload_url)
-    print(_("Port:"), port, "(HTTP + WebSocket)")
+    _scheme_label = "HTTPS + WSS" if _ssl_enabled else "HTTP + WebSocket"
+    print(_("Port:"), port, f"({_scheme_label})")
     print("======================================")
     print("CONFIG(primary):", CONFIG_PATH_PRIMARY)
     print("CONFIG(fallback):", CONFIG_PATH_FALLBACK)
@@ -167,7 +186,7 @@ def main():
         print(_("LLM assist:"), config_store.LLM_MODEL, "@", config_store.LLM_BASE_URL)
     print("======================================\n")
 
-    threading.Thread(target=lambda: run_server(get_url_state), daemon=True).start()
+    threading.Thread(target=lambda: run_server(get_url_state, ssl_context=ssl_context), daemon=True).start()
 
     # Optional: preload LLM model in background when enabled
     if config_store.LLM_ENABLED:

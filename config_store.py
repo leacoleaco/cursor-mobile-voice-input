@@ -26,6 +26,9 @@ AUTH_REQUIRED: bool = True  # If True, HTTP/WS require token; if False, no auth 
 LOCALE: str = "zh_CN"  # UI language: zh_CN, en
 RUN_IN_BACKGROUND: bool = True  # If True, closing window minimizes to tray; if False, exits app
 
+# TLS/SSL: self-signed certificate for HTTPS/WSS
+SSL_ENABLED: bool = False  # When True, server uses HTTPS/WSS with a self-signed cert
+
 # SSH tunnel for public exposure (optional)
 SSH_TUNNEL_HOST: Optional[str] = None
 SSH_TUNNEL_PORT: int = 22
@@ -73,6 +76,7 @@ def load_config():
     def _apply(data: dict):
         global CONFIG_DATA, COMMANDS, USER_IP, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, ACCESS_TOKEN, AUTH_REQUIRED, LOCALE, RUN_IN_BACKGROUND
         global SSH_TUNNEL_HOST, SSH_TUNNEL_PORT, SSH_TUNNEL_USER, SSH_TUNNEL_PASSWORD, SSH_TUNNEL_KEY_PATH, SSH_REMOTE_PORT
+        global SSL_ENABLED
         CONFIG_DATA = data
         COMMANDS = _normalize_commands(data.get("commands"))
         ip = (data.get("user_ip") or "").strip()
@@ -90,6 +94,7 @@ def load_config():
         SSH_TUNNEL_PASSWORD = (data.get("ssh_tunnel_password") or "").strip() or None
         SSH_TUNNEL_KEY_PATH = (data.get("ssh_tunnel_key_path") or "").strip() or None
         SSH_REMOTE_PORT = int(data.get("ssh_remote_port") or 8080)
+        SSL_ENABLED = bool(data.get("ssl_enabled", False))
 
     data = _try_read_json(CONFIG_PATH_PRIMARY)
     if isinstance(data, dict):
@@ -103,7 +108,7 @@ def load_config():
         CONFIG_PATH_IN_USE = CONFIG_PATH_FALLBACK
         return
 
-    global LOCALE, RUN_IN_BACKGROUND, SSH_TUNNEL_HOST, SSH_TUNNEL_PORT, SSH_TUNNEL_USER, SSH_TUNNEL_PASSWORD, SSH_TUNNEL_KEY_PATH, SSH_REMOTE_PORT
+    global LOCALE, RUN_IN_BACKGROUND, SSH_TUNNEL_HOST, SSH_TUNNEL_PORT, SSH_TUNNEL_USER, SSH_TUNNEL_PASSWORD, SSH_TUNNEL_KEY_PATH, SSH_REMOTE_PORT, SSL_ENABLED
     USER_IP = None
     LOCALE = "zh_CN"
     RUN_IN_BACKGROUND = True
@@ -113,7 +118,8 @@ def load_config():
     SSH_TUNNEL_PASSWORD = None
     SSH_TUNNEL_KEY_PATH = None
     SSH_REMOTE_PORT = 8080
-    CONFIG_DATA = {"user_ip": None, "commands": [], "run_in_background": True, "llm_enabled": False, "llm_model": "qwen3.5:0.8b", "llm_base_url": "http://127.0.0.1:11434", "access_token": None, "locale": "zh_CN"}
+    SSL_ENABLED = False
+    CONFIG_DATA = {"user_ip": None, "commands": [], "run_in_background": True, "llm_enabled": False, "llm_model": "qwen3.5:0.8b", "llm_base_url": "http://127.0.0.1:11434", "access_token": None, "locale": "zh_CN", "ssl_enabled": False}
     COMMANDS = []
     LLM_ENABLED = False
     LLM_MODEL = "qwen3.5:0.8b"
@@ -128,6 +134,7 @@ def save_config():
     """
     global CONFIG_PATH_IN_USE, CONFIG_DATA, COMMANDS, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, ACCESS_TOKEN, RUN_IN_BACKGROUND
     global SSH_TUNNEL_HOST, SSH_TUNNEL_PORT, SSH_TUNNEL_USER, SSH_TUNNEL_PASSWORD, SSH_TUNNEL_KEY_PATH, SSH_REMOTE_PORT
+    global SSL_ENABLED
     data = dict(CONFIG_DATA) if isinstance(CONFIG_DATA, dict) else {}
     data["user_ip"] = USER_IP
     data["commands"] = COMMANDS
@@ -144,6 +151,7 @@ def save_config():
     data["ssh_tunnel_password"] = SSH_TUNNEL_PASSWORD
     data["ssh_tunnel_key_path"] = SSH_TUNNEL_KEY_PATH
     data["ssh_remote_port"] = SSH_REMOTE_PORT
+    data["ssl_enabled"] = SSL_ENABLED
 
     if _try_write_json(CONFIG_PATH_PRIMARY, data):
         CONFIG_PATH_IN_USE = CONFIG_PATH_PRIMARY

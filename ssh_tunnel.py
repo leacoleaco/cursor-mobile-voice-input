@@ -94,9 +94,10 @@ class SSHTunnelManager:
     def is_active(self) -> bool:
         return self._active
 
-    def get_public_url(self, token: Optional[str] = None, locale: Optional[str] = None) -> str:
-        """Build public URL for QR code: http://host:remote_port?token=...&lang=..."""
-        base = f"http://{self.host}:{self.remote_port}"
+    def get_public_url(self, token: Optional[str] = None, locale: Optional[str] = None, ssl: bool = False) -> str:
+        """Build public URL for QR code: http(s)://host:remote_port?token=...&lang=..."""
+        scheme = "https" if ssl else "http"
+        base = f"{scheme}://{self.host}:{self.remote_port}"
         params = []
         if token and token.strip():
             params.append(f"token={token.strip()}")

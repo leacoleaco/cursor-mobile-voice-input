@@ -375,7 +375,7 @@ def create_app(get_url_state):
     return app
 
 
-def run_server(get_url_state):
+def run_server(get_url_state, ssl_context=None):
     import os
 
     global PORT
@@ -386,16 +386,16 @@ def run_server(get_url_state):
     app = create_app(get_url_state)
     dev_mode = os.environ.get("LANVOICE_DEV") in ("1", "true", "yes")
     use_reloader = dev_mode and os.environ.get("LANVOICE_NO_RELOADER") != "1"
-    print(f"HTTP + WebSocket 运行于 http://0.0.0.0:{port} 和 ws://0.0.0.0:{port}/ws")
+    scheme = "https" if ssl_context else "http"
+    ws_scheme = "wss" if ssl_context else "ws"
+    print(f"HTTP + WebSocket 运行于 {scheme}://0.0.0.0:{port} 和 {ws_scheme}://0.0.0.0:{port}/ws")
     if use_reloader:
         print("[dev] 热重载已启用，修改 .py 后自动重启")
-    # Bind to 0.0.0.0 so SSH tunnel (and LAN) can connect; 127.0.0.1 can reject tunnel on some systems.
-    # threaded=True is critical: each WebSocket connection blocks a thread; without it only one
-    # connection can be handled at a time, causing new clients to hang until the previous thread exits.
     app.run(
         host="0.0.0.0",
         port=port,
         debug=dev_mode,
         use_reloader=use_reloader,
         threaded=True,
+        ssl_context=ssl_context,
     )

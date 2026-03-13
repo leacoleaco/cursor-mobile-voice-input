@@ -212,3 +212,4 @@ packageNoConsle.py
 todo-list.md
 .vscode/
 config.json
+*.pem
