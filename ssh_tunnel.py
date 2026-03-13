@@ -107,8 +107,16 @@ class SSHTunnelManager:
         return base
 
     def _notify(self, active: bool, error: Optional[str] = None):
+        # Suppress redundant inactive notifications to avoid spamming the UI on every retry.
+        # Always fire when transitioning active<->inactive, or when there's a new error message.
+        prev_active = self._active
+        prev_error = self._error
         self._active = active
         self._error = error
+        state_changed = (active != prev_active) or (active and error != prev_error)
+        error_changed = bool(error) and error != prev_error
+        if not state_changed and not error_changed:
+            return
         if self.on_state_change:
             try:
                 self.on_state_change(active, error)
@@ -148,12 +156,43 @@ class SSHTunnelManager:
         self._thread.start()
         return None
 
+    def _kill_remote_port(self, ssh_exe: str, key_opt: list) -> None:
+        """Try to kill any process on the server that holds self.remote_port, so the next
+        -R forward succeeds immediately instead of failing with 'port forwarding failed'."""
+        cmd = [
+            ssh_exe,
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=8",
+            "-o", "AddressFamily=inet",
+            *key_opt,
+        ]
+        if self.port != 22:
+            cmd.extend(["-p", str(self.port)])
+        cmd.append(f"{self.username}@{self.host}")
+        # fuser kills the process holding the port; fallback to lsof+kill for macOS/BSD
+        kill_cmd = (
+            f"fuser -k {self.remote_port}/tcp 2>/dev/null; "
+            f"pid=$(lsof -ti tcp:{self.remote_port} 2>/dev/null); "
+            f"[ -n \"$pid\" ] && kill $pid 2>/dev/null; "
+            f"sleep 1"
+        )
+        cmd.append(kill_cmd)
+        try:
+            subprocess.run(cmd, timeout=12, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+
     def _run_system_ssh(self):
         """Use system ssh -R for tunnel (more reliable for WebSocket). Auto-restarts on drop."""
-        SSH_RETRY_DELAYS = [3, 5, 10, 20, 30]  # seconds between reconnect attempts
+        # Normal retry delays; port-busy errors use longer delays to let the server release the port.
+        SSH_RETRY_DELAYS = [5, 10, 15, 20, 30]
+        SSH_PORT_BUSY_DELAYS = [15, 20, 30, 45, 60]
         retry_count = 0
+        port_busy_count = 0
 
         while not self._stop_event.is_set():
+            err = ""
             try:
                 ssh_exe = _find_ssh()
                 if not ssh_exe:
@@ -161,7 +200,8 @@ class SSHTunnelManager:
                 key_opt = ["-i", self.key_path] if self.key_path else []
                 cmd = [
                     ssh_exe,
-                    "-R", f"{self.remote_port}:127.0.0.1:{self.local_port}",
+                    # Bind on all interfaces so the port is reachable from outside
+                    "-R", f"0.0.0.0:{self.remote_port}:127.0.0.1:{self.local_port}",
                     "-o", "StrictHostKeyChecking=no",
                     "-o", "ServerAliveInterval=20",
                     "-o", "ServerAliveCountMax=3",
@@ -183,24 +223,28 @@ class SSHTunnelManager:
                     encoding="utf-8",
                     errors="replace",
                 )
-                # Wait briefly to see if ssh exits immediately (e.g. port forward rejected)
+                # Give ssh up to 8s to either establish the tunnel or fail fast
                 try:
-                    self._proc.wait(timeout=2.0)
+                    self._proc.wait(timeout=8.0)
                 except subprocess.TimeoutExpired:
-                    # Process still running after 2s -> tunnel established
+                    # Still running after 8s -> tunnel is up
                     self._notify(True, None)
                     retry_count = 0
-                    self._proc.wait()  # Block until the tunnel drops
-                    # Tunnel dropped — loop will reconnect unless stopped
+                    port_busy_count = 0
+                    self._proc.wait()  # Block until the tunnel drops naturally
                     if not self._stop_event.is_set():
-                        err = (self._proc.stderr.read() or "").strip() if self._proc.stderr else ""
-                        self._notify(False, err or _("Tunnel dropped, reconnecting…"))
+                        try:
+                            err = (self._proc.stderr.read() or "").strip()
+                        except Exception:
+                            err = ""
+                        self._notify(False, err or _("Tunnel dropped, reconnecting..."))
                     continue
 
-                # Process exited immediately - read stderr for error
-                err = ""
-                if self._proc and self._proc.stderr:
+                # Process exited within 8s -- read stderr to classify the error
+                try:
                     err = (self._proc.stderr.read() or "").strip()
+                except Exception:
+                    err = ""
                 if self._stop_event.is_set():
                     break
                 self._notify(False, err or _("SSH exited immediately"))
@@ -208,7 +252,8 @@ class SSHTunnelManager:
             except Exception as e:
                 if self._stop_event.is_set():
                     break
-                self._notify(False, str(e))
+                err = str(e)
+                self._notify(False, err)
             finally:
                 if self._proc:
                     try:
@@ -221,12 +266,30 @@ class SSHTunnelManager:
                             pass
                     self._proc = None
 
-            # Wait before retry
             if self._stop_event.is_set():
                 break
-            delay = SSH_RETRY_DELAYS[min(retry_count, len(SSH_RETRY_DELAYS) - 1)]
-            retry_count += 1
-            print(f"[tunnel] reconnecting in {delay}s (attempt {retry_count})…")
+
+            # Detect "remote port forwarding failed" -- the server-side port is still held by a
+            # previous ssh process. Use longer back-off to give the server time to release it.
+            port_busy = "port forwarding failed" in err.lower() or "remote port" in err.lower()
+            if port_busy:
+                port_busy_count += 1
+                delay = SSH_PORT_BUSY_DELAYS[min(port_busy_count - 1, len(SSH_PORT_BUSY_DELAYS) - 1)]
+                print(f"[tunnel] remote port {self.remote_port} busy, waiting {delay}s for server to release...")
+                # Actively kill the stale process on the server so next attempt succeeds sooner
+                try:
+                    ssh_exe2 = _find_ssh()
+                    key_opt2 = ["-i", self.key_path] if self.key_path else []
+                    if ssh_exe2:
+                        self._kill_remote_port(ssh_exe2, key_opt2)
+                except Exception:
+                    pass
+            else:
+                port_busy_count = 0
+                delay = SSH_RETRY_DELAYS[min(retry_count, len(SSH_RETRY_DELAYS) - 1)]
+                retry_count += 1
+                print(f"[tunnel] reconnecting in {delay}s (attempt {retry_count})...")
+
             self._stop_event.wait(timeout=delay)
 
         self._notify(False, None)
