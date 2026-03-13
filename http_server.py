@@ -173,6 +173,10 @@ def _handle_key(payload: dict) -> Optional[dict]:
 def create_app(get_url_state):
     """get_url_state returns dict: {http_port, ws_port, url, qr_url} - now http_port==ws_port."""
     app = Flask(__name__)
+    # Send WebSocket ping every 20s so tunnel routers don't silently drop idle connections.
+    # The client will respond with pong automatically; if it doesn't, the connection is closed
+    # and the client's onclose fires, triggering the retry logic.
+    app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 20}
     sock = Sock(app)
 
     @app.before_request
@@ -360,10 +364,13 @@ def run_server(get_url_state):
     print(f"HTTP + WebSocket 运行于 http://0.0.0.0:{port} 和 ws://0.0.0.0:{port}/ws")
     if use_reloader:
         print("[dev] 热重载已启用，修改 .py 后自动重启")
-    # Bind to 0.0.0.0 so SSH tunnel (and LAN) can connect; 127.0.0.1 can reject tunnel on some systems
+    # Bind to 0.0.0.0 so SSH tunnel (and LAN) can connect; 127.0.0.1 can reject tunnel on some systems.
+    # threaded=True is critical: each WebSocket connection blocks a thread; without it only one
+    # connection can be handled at a time, causing new clients to hang until the previous thread exits.
     app.run(
         host="0.0.0.0",
         port=port,
         debug=dev_mode,
         use_reloader=use_reloader,
+        threaded=True,
     )

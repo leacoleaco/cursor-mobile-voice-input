@@ -149,126 +149,169 @@ class SSHTunnelManager:
         return None
 
     def _run_system_ssh(self):
-        """Use system ssh -R for tunnel (more reliable for WebSocket)."""
-        try:
-            ssh_exe = _find_ssh()
-            if not ssh_exe:
-                raise RuntimeError(_("System ssh not found"))
-            key_opt = ["-i", self.key_path] if self.key_path else []
-            cmd = [
-                ssh_exe,
-                "-R", f"{self.remote_port}:127.0.0.1:{self.local_port}",
-                "-o", "StrictHostKeyChecking=no",
-                "-o", "ServerAliveInterval=60",
-                "-o", "ExitOnForwardFailure=yes",
-                "-o", "AddressFamily=inet",
-                "-N",
-                *key_opt,
-            ]
-            if self.port != 22:
-                cmd.extend(["-p", str(self.port)])
-            cmd.append(f"{self.username}@{self.host}")
-            self._proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-            )
-            # Wait briefly to see if ssh exits immediately (e.g. port forward rejected)
-            self._proc.wait(timeout=2.0)
-        except subprocess.TimeoutExpired:
-            # Process still running after 2s -> tunnel established
-            self._notify(True, None)
+        """Use system ssh -R for tunnel (more reliable for WebSocket). Auto-restarts on drop."""
+        SSH_RETRY_DELAYS = [3, 5, 10, 20, 30]  # seconds between reconnect attempts
+        retry_count = 0
+
+        while not self._stop_event.is_set():
             try:
-                self._proc.wait()
-            except Exception:
-                pass
-        except Exception as e:
-            if not self._stop_event.is_set():
-                self._notify(False, str(e))
-        else:
-            # Process exited immediately - read stderr for error
-            err = ""
-            if self._proc and self._proc.stderr:
-                err = (self._proc.stderr.read() or "").strip()
-            if not self._stop_event.is_set():
-                self._notify(False, err or _("SSH exited immediately"))
-        finally:
-            if self._proc:
+                ssh_exe = _find_ssh()
+                if not ssh_exe:
+                    raise RuntimeError(_("System ssh not found"))
+                key_opt = ["-i", self.key_path] if self.key_path else []
+                cmd = [
+                    ssh_exe,
+                    "-R", f"{self.remote_port}:127.0.0.1:{self.local_port}",
+                    "-o", "StrictHostKeyChecking=no",
+                    "-o", "ServerAliveInterval=20",
+                    "-o", "ServerAliveCountMax=3",
+                    "-o", "ExitOnForwardFailure=yes",
+                    "-o", "AddressFamily=inet",
+                    "-o", "TCPKeepAlive=yes",
+                    "-N",
+                    *key_opt,
+                ]
+                if self.port != 22:
+                    cmd.extend(["-p", str(self.port)])
+                cmd.append(f"{self.username}@{self.host}")
+                self._proc = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+                # Wait briefly to see if ssh exits immediately (e.g. port forward rejected)
                 try:
-                    self._proc.terminate()
-                    self._proc.wait(timeout=3)
-                except Exception:
+                    self._proc.wait(timeout=2.0)
+                except subprocess.TimeoutExpired:
+                    # Process still running after 2s -> tunnel established
+                    self._notify(True, None)
+                    retry_count = 0
+                    self._proc.wait()  # Block until the tunnel drops
+                    # Tunnel dropped — loop will reconnect unless stopped
+                    if not self._stop_event.is_set():
+                        err = (self._proc.stderr.read() or "").strip() if self._proc.stderr else ""
+                        self._notify(False, err or _("Tunnel dropped, reconnecting…"))
+                    continue
+
+                # Process exited immediately - read stderr for error
+                err = ""
+                if self._proc and self._proc.stderr:
+                    err = (self._proc.stderr.read() or "").strip()
+                if self._stop_event.is_set():
+                    break
+                self._notify(False, err or _("SSH exited immediately"))
+
+            except Exception as e:
+                if self._stop_event.is_set():
+                    break
+                self._notify(False, str(e))
+            finally:
+                if self._proc:
                     try:
-                        self._proc.kill()
+                        self._proc.terminate()
+                        self._proc.wait(timeout=3)
                     except Exception:
-                        pass
-                self._proc = None
-            self._notify(False, None)
+                        try:
+                            self._proc.kill()
+                        except Exception:
+                            pass
+                    self._proc = None
+
+            # Wait before retry
+            if self._stop_event.is_set():
+                break
+            delay = SSH_RETRY_DELAYS[min(retry_count, len(SSH_RETRY_DELAYS) - 1)]
+            retry_count += 1
+            print(f"[tunnel] reconnecting in {delay}s (attempt {retry_count})…")
+            self._stop_event.wait(timeout=delay)
+
+        self._notify(False, None)
 
     def _run_tunnel(self):
-        """Background thread: connect, request reverse forward, accept and pipe."""
-        try:
-            paramiko = _get_paramiko()
-            client = paramiko.SSHClient()
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        """Background thread: connect, request reverse forward, accept and pipe. Auto-restarts on drop."""
+        SSH_RETRY_DELAYS = [3, 5, 10, 20, 30]
+        retry_count = 0
 
-            connect_kw = {
-                "hostname": self.host,
-                "port": self.port,
-                "username": self.username,
-            }
-            if self.key_path:
-                connect_kw["key_filename"] = self.key_path
-            if self.password:
-                connect_kw["password"] = self.password
+        while not self._stop_event.is_set():
+            try:
+                paramiko = _get_paramiko()
+                client = paramiko.SSHClient()
+                client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-            client.connect(**connect_kw)
-            self._client = client
-            self._transport = client.get_transport()
-            if not self._transport:
-                raise RuntimeError(_("SSH connection failed"))
+                connect_kw = {
+                    "hostname": self.host,
+                    "port": self.port,
+                    "username": self.username,
+                }
+                if self.key_path:
+                    connect_kw["key_filename"] = self.key_path
+                if self.password:
+                    connect_kw["password"] = self.password
 
-            # Request server to listen on remote_port; forward to localhost:local_port
-            self._transport.request_port_forward("", self.remote_port)
-            self._notify(True, None)
+                client.connect(**connect_kw)
+                self._client = client
+                self._transport = client.get_transport()
+                if not self._transport:
+                    raise RuntimeError(_("SSH connection failed"))
 
-            while not self._stop_event.is_set() and self._transport.is_active():
-                chan = self._transport.accept(1.0)
-                if chan is None:
-                    continue
-                thr = threading.Thread(
-                    target=self._handler,
-                    args=(chan, "127.0.0.1", self.local_port),
-                    daemon=True,
-                )
-                thr.start()
-        except Exception as e:
-            if not self._stop_event.is_set():
+                # Request server to listen on remote_port; forward to localhost:local_port
+                self._transport.request_port_forward("", self.remote_port)
+                self._notify(True, None)
+                retry_count = 0
+
+                while not self._stop_event.is_set() and self._transport.is_active():
+                    chan = self._transport.accept(1.0)
+                    if chan is None:
+                        continue
+                    thr = threading.Thread(
+                        target=self._handler,
+                        args=(chan, "127.0.0.1", self.local_port),
+                        daemon=True,
+                    )
+                    thr.start()
+
+                if not self._stop_event.is_set():
+                    self._notify(False, _("Tunnel dropped, reconnecting…"))
+
+            except Exception as e:
+                if self._stop_event.is_set():
+                    break
                 msg = str(e)
                 if "Authentication" in msg or "auth" in msg.lower():
+                    # Auth errors won't resolve by retrying — give up
                     self._notify(False, _("SSH authentication failed: {e}").format(e=msg))
+                    break
                 elif "connect" in msg.lower() or "timeout" in msg.lower():
                     self._notify(False, _("Cannot connect to SSH server: {e}").format(e=msg))
                 else:
                     self._notify(False, _("SSH error: {e}").format(e=msg))
-        finally:
-            try:
-                if self._transport:
-                    self._transport.cancel_port_forward("", self.remote_port)
-            except Exception:
-                pass
-            try:
-                if self._client:
-                    self._client.close()
-            except Exception:
-                pass
-            self._client = None
-            self._transport = None
-            self._notify(False, None)
+            finally:
+                try:
+                    if self._transport:
+                        self._transport.cancel_port_forward("", self.remote_port)
+                except Exception:
+                    pass
+                try:
+                    if self._client:
+                        self._client.close()
+                except Exception:
+                    pass
+                self._client = None
+                self._transport = None
+
+            # Wait before retry
+            if self._stop_event.is_set():
+                break
+            delay = SSH_RETRY_DELAYS[min(retry_count, len(SSH_RETRY_DELAYS) - 1)]
+            retry_count += 1
+            print(f"[tunnel] reconnecting in {delay}s (attempt {retry_count})…")
+            self._stop_event.wait(timeout=delay)
+
+        self._notify(False, None)
 
     def _handler(self, chan, host, port):
         """Forward SSH channel to local socket (from paramiko rforward demo)."""
