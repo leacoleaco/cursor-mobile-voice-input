@@ -387,3 +387,24 @@ msgstr "隧道已停止"
 
 msgid "Log area: tunnel status and errors will appear here"
 msgstr "日志区域：隧道状态和错误信息将显示在此"
+
+msgid "Access mode:"
+msgstr "访问方式："
+
+msgid "Local (this machine only)"
+msgstr "本机（仅本机可访问）"
+
+msgid "LAN (same network)"
+msgstr "局域网（同网段）"
+
+msgid "Public (internet)"
+msgstr "公网（任意位置）"
+
+msgid "Tunnel config"
+msgstr "隧道配置"
+
+msgid "SSH tunnel is not available in this build."
+msgstr "此版本不支持 SSH 隧道。"
+
+msgid "Local access (this machine only)"
+msgstr "本机访问（仅本机可用）"

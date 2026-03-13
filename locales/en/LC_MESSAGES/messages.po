@@ -387,3 +387,24 @@ msgstr "Tunnel stopped"
 
 msgid "Log area: tunnel status and errors will appear here"
 msgstr "Log area: tunnel status and errors will appear here"
+
+msgid "Access mode:"
+msgstr "Access mode:"
+
+msgid "Local (this machine only)"
+msgstr "Local (this machine only)"
+
+msgid "LAN (same network)"
+msgstr "LAN (same network)"
+
+msgid "Public (internet)"
+msgstr "Public (internet)"
+
+msgid "Tunnel config"
+msgstr "Tunnel config"
+
+msgid "SSH tunnel is not available in this build."
+msgstr "SSH tunnel is not available in this build."
+
+msgid "Local access (this machine only)"
+msgstr "Local access (this machine only)"

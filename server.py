@@ -82,6 +82,15 @@ def main():
         )
         return qr_payload_url
 
+    def build_url_for_ip(ip: str) -> str:
+        """Build a payload URL for any given IP (used by QR window per-mode)."""
+        _, url = build_urls(
+            ip, port, port,
+            token=get_token() if config_store.AUTH_REQUIRED else None,
+            locale=config_store.LOCALE,
+        )
+        return url
+
     def get_payload_url():
         """Return public URL when tunnel active, else LAN URL."""
         if ssh_tunnel and ssh_tunnel.is_active():
@@ -127,6 +136,7 @@ def main():
         get_effective_ip=lambda: get_effective_ip(config_store.USER_IP),
         get_ports=lambda: (port, port),
         get_payload_url=get_payload_url,
+        build_url_for_ip=build_url_for_ip,
         get_config_path=lambda: CONFIG_PATH_IN_USE,
         list_candidates=get_ipv4_candidates,
         ssh_tunnel=ssh_tunnel,

@@ -7,10 +7,14 @@ from typing import Callable, List, Optional, Tuple
 import qrcode
 import tkinter as tk
 from PIL import Image, ImageTk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 
 import config_store
 from i18n import _
+
+ACCESS_MODE_LOCAL = "local"
+ACCESS_MODE_LAN = "lan"
+ACCESS_MODE_PUBLIC = "public"
 
 
 class QRWindowManager:
@@ -26,6 +30,7 @@ class QRWindowManager:
         get_config_path: Callable[[], str],
         list_candidates: Callable[[], List[Tuple[str, str]]],
         *,
+        build_url_for_ip: Optional[Callable[[str], str]] = None,
         ssh_tunnel=None,
         on_locale_change: Optional[Callable[[], None]] = None,
         dev_mode: bool = False,
@@ -37,6 +42,7 @@ class QRWindowManager:
         self.get_effective_ip = get_effective_ip
         self.get_ports = get_ports
         self.get_payload_url = get_payload_url
+        self.build_url_for_ip = build_url_for_ip
         self.get_config_path = get_config_path
         self.list_candidates = list_candidates
         self.ssh_tunnel = ssh_tunnel
@@ -78,6 +84,11 @@ class QRWindowManager:
         self.ip_items: List[Tuple[str, str]] = []
         self.ip_var = tk.StringVar()
         self.combo = None
+
+        self.access_mode_var = tk.StringVar(value=ACCESS_MODE_LAN)
+        self._access_radio_btns = {}  # label -> Radiobutton widget
+        self._mode_row = None
+        self._lan_row = None
 
         self.img_label = None
         self.url_label = None
@@ -145,6 +156,9 @@ class QRWindowManager:
             self.lang_combo = None
             self.lang_var = None
             self._header_widgets = None
+            self._access_radio_btns = {}
+            self._mode_row = None
+            self._lan_row = None
             self.img_label = None
             self.url_label = None
             self.tip_label = None
@@ -171,6 +185,9 @@ class QRWindowManager:
         self.lang_combo = None
         self.lang_var = None
         self._header_widgets = None
+        self._access_radio_btns = {}
+        self._mode_row = None
+        self._lan_row = None
         self.img_label = None
         self.url_label = None
         self.tip_label = None
@@ -186,51 +203,70 @@ class QRWindowManager:
         self.top.protocol("WM_DELETE_WINDOW", self._close_window)
         self.top.resizable(True, True)
 
-        header = ttk.Frame(self.top)
-        header.pack(fill="x", padx=10, pady=(10, 6))
+        # ── Row 1: access mode radio buttons ──────────────────────────────────
+        mode_row = ttk.Frame(self.top)
+        mode_row.pack(fill="x", padx=10, pady=(10, 2))
+        self._mode_row = mode_row
+
+        ttk.Label(mode_row, text=_("Access mode:"), font=("Arial", 10, "bold")).pack(side="left", padx=(0, 8))
+        self._access_radio_btns = {}
+        for mode_value, label_key in (
+            (ACCESS_MODE_LOCAL, "Local (this machine only)"),
+            (ACCESS_MODE_LAN,   "LAN (same network)"),
+            (ACCESS_MODE_PUBLIC, "Public (internet)"),
+        ):
+            rb = ttk.Radiobutton(
+                mode_row, text=_(label_key),
+                variable=self.access_mode_var, value=mode_value,
+                command=self._on_access_mode_changed,
+            )
+            rb.pack(side="left", padx=(0, 12))
+            self._access_radio_btns[mode_value] = rb
+
+        # ── Row 2: LAN IP selector (hidden when mode != lan) ──────────────────
+        self._lan_row = ttk.Frame(self.top)
+        self._lan_row.pack(fill="x", padx=10, pady=(2, 2))
 
         self._header_widgets = {}
-        self._header_widgets["ip_label"] = ttk.Label(header, text=_("Select NIC/IP:"))
+        self._header_widgets["ip_label"] = ttk.Label(self._lan_row, text=_("Select NIC/IP:"))
         self._header_widgets["ip_label"].pack(side="left")
 
-        self.combo = ttk.Combobox(header, textvariable=self.ip_var, state="readonly", width=40)
+        self.combo = ttk.Combobox(self._lan_row, textvariable=self.ip_var, state="readonly", width=40)
         self.combo.pack(side="left", padx=6, fill="x", expand=True)
+        self.combo.bind("<<ComboboxSelected>>", lambda e: self._on_ip_selected())
+
+        btn_auto = ttk.Button(self._lan_row, text=_("Auto recommended"), command=self._on_auto_ip)
+        btn_auto.pack(side="left", padx=(6, 0))
+        self._header_widgets["btn_auto"] = btn_auto
+
+        # ── Row 3: settings / language / background ───────────────────────────
+        toolbar = ttk.Frame(self.top)
+        toolbar.pack(fill="x", padx=10, pady=(2, 6))
 
         _lang_display = {"zh_CN": "中文", "en": "English"}
         _lang_value = {"中文": "zh_CN", "English": "en"}
         self._lang_display = _lang_display
         self._lang_value = _lang_value
         self.lang_var = tk.StringVar(value=_lang_display.get(config_store.LOCALE or "zh_CN", "中文"))
-        self.lang_combo = ttk.Combobox(header, textvariable=self.lang_var, values=["中文", "English"], state="readonly", width=8)
+        self.lang_combo = ttk.Combobox(toolbar, textvariable=self.lang_var, values=["中文", "English"], state="readonly", width=8)
         self.lang_combo.pack(side="left", padx=(0, 6))
         self.lang_combo.bind("<<ComboboxSelected>>", lambda e: self._on_lang_changed())
 
-        btn_auto = ttk.Button(header, text=_("Auto recommended"), command=self._on_auto_ip)
-        btn_auto.pack(side="left", padx=(6, 0))
-        self._header_widgets["btn_auto"] = btn_auto
-
-        btn_settings = ttk.Button(header, text=_("Settings"), command=self._show_settings)
-        btn_settings.pack(side="left", padx=(6, 0))
+        btn_settings = ttk.Button(toolbar, text=_("Settings"), command=self._show_settings)
+        btn_settings.pack(side="left", padx=(0, 6))
         self._header_widgets["btn_settings"] = btn_settings
 
-        self.btn_tunnel_cfg = ttk.Button(header, text=_("Tunnel"), command=self._show_tunnel_settings)
-        self.btn_tunnel_cfg.pack(side="left", padx=(6, 0))
+        # SSH tunnel config button (always available for public mode)
+        self.btn_tunnel_cfg = ttk.Button(toolbar, text=_("Tunnel config"), command=self._show_tunnel_settings)
+        self.btn_tunnel_cfg.pack(side="left", padx=(0, 6))
         self._header_widgets["btn_tunnel_cfg"] = self.btn_tunnel_cfg
-
-        self.btn_tunnel = ttk.Button(header, text=_("Expose to public"), command=self._on_tunnel_toggle)
-        self.btn_tunnel.pack(side="left", padx=(6, 0))
-        self._header_widgets["btn_tunnel"] = self.btn_tunnel
-
         if not self.ssh_tunnel:
             self.btn_tunnel_cfg.pack_forget()
-            self.btn_tunnel.pack_forget()
 
         self.run_in_bg_var = tk.BooleanVar(value=config_store.RUN_IN_BACKGROUND)
-        cb_bg = ttk.Checkbutton(header, text=_("Run in background when closed"), variable=self.run_in_bg_var, command=self._on_run_in_bg_changed)
+        cb_bg = ttk.Checkbutton(toolbar, text=_("Run in background when closed"), variable=self.run_in_bg_var, command=self._on_run_in_bg_changed)
         cb_bg.pack(side="left", padx=(6, 0))
         self._header_widgets["cb_run_in_bg"] = cb_bg
-
-        self.combo.bind("<<ComboboxSelected>>", lambda e: self._on_ip_selected())
 
         self.img_label = ttk.Label(self.top)
         self.img_label.pack(padx=10, pady=10)
@@ -305,45 +341,82 @@ class QRWindowManager:
         config_store.save_config()
         self._refresh_qr_and_text()
 
-    def _update_tunnel_button_text(self):
-        if not self.ssh_tunnel or "btn_tunnel" not in self._header_widgets:
-            return
-        if self.ssh_tunnel.is_active():
-            self._header_widgets["btn_tunnel"].configure(text=_("Stop public exposure"))
-        else:
-            self._header_widgets["btn_tunnel"].configure(text=_("Expose to public"))
+    def _on_access_mode_changed(self):
+        """Handle access mode radio button switch."""
+        mode = self.access_mode_var.get()
 
-    def _on_tunnel_toggle(self):
-        """Start or stop SSH tunnel for public exposure."""
+        # Show/hide LAN IP row
+        if mode == ACCESS_MODE_LAN:
+            self._lan_row.pack(fill="x", padx=10, pady=(2, 2), after=self._mode_row)
+            self._reload_ip_list_and_select_current()
+        else:
+            self._lan_row.pack_forget()
+
+        if mode == ACCESS_MODE_PUBLIC:
+            if not self.ssh_tunnel:
+                # No tunnel support at all — revert back to LAN
+                self.access_mode_var.set(ACCESS_MODE_LAN)
+                self._lan_row.pack(fill="x", padx=10, pady=(2, 2), after=self._mode_row)
+                messagebox.showinfo(_("Tunnel"), _("SSH tunnel is not available in this build."))
+                return
+            # If not configured, open settings first
+            if not config_store.SSH_TUNNEL_HOST or not config_store.SSH_TUNNEL_USER:
+                self._show_tunnel_settings()
+                # After dialog closes, check again
+                if not config_store.SSH_TUNNEL_HOST or not config_store.SSH_TUNNEL_USER:
+                    # User cancelled — fall back to LAN
+                    self.access_mode_var.set(ACCESS_MODE_LAN)
+                    self._lan_row.pack(fill="x", padx=10, pady=(2, 2), after=self._mode_row)
+                    return
+            # Start tunnel if not active
+            if not self.ssh_tunnel.is_active():
+                def get_tunnel_config():
+                    return {
+                        "host": config_store.SSH_TUNNEL_HOST,
+                        "port": config_store.SSH_TUNNEL_PORT,
+                        "username": config_store.SSH_TUNNEL_USER,
+                        "password": config_store.SSH_TUNNEL_PASSWORD,
+                        "key_path": config_store.SSH_TUNNEL_KEY_PATH,
+                        "remote_port": config_store.SSH_REMOTE_PORT,
+                    }
+                err = self.ssh_tunnel.start(refresh_config=get_tunnel_config)
+                if err:
+                    self.log(f"[Tunnel] {err}")
+                    messagebox.showerror(_("SSH tunnel error"), err)
+                    # Revert to LAN
+                    self.access_mode_var.set(ACCESS_MODE_LAN)
+                    self._lan_row.pack(fill="x", padx=10, pady=(2, 2), after=self._mode_row)
+                    return
+        else:
+            # Switched away from public — stop tunnel if running
+            if self.ssh_tunnel and self.ssh_tunnel.is_active():
+                self.ssh_tunnel.stop()
+
+        self._refresh_qr_and_text()
+
+    def _update_tunnel_button_text(self):
+        """Sync radio button state with actual tunnel status."""
         if not self.ssh_tunnel:
             return
         if self.ssh_tunnel.is_active():
-            self.ssh_tunnel.stop()
-            self._update_tunnel_button_text()
-            self._refresh_qr_and_text()
+            self.access_mode_var.set(ACCESS_MODE_PUBLIC)
+            if hasattr(self, "_lan_row") and self._lan_row:
+                self._lan_row.pack_forget()
+        else:
+            if self.access_mode_var.get() == ACCESS_MODE_PUBLIC:
+                self.access_mode_var.set(ACCESS_MODE_LAN)
+                if hasattr(self, "_lan_row") and self._lan_row and hasattr(self, "_mode_row") and self._mode_row:
+                    self._lan_row.pack(fill="x", padx=10, pady=(2, 2), after=self._mode_row)
+
+    def _on_tunnel_toggle(self):
+        """Legacy: toggle tunnel via radio mode change."""
+        if not self.ssh_tunnel:
             return
-        # Need config first
-        if not config_store.SSH_TUNNEL_HOST or not config_store.SSH_TUNNEL_USER:
-            self._show_tunnel_settings()
-            if not config_store.SSH_TUNNEL_HOST or not config_store.SSH_TUNNEL_USER:
-                return
-        def get_tunnel_config():
-            return {
-                "host": config_store.SSH_TUNNEL_HOST,
-                "port": config_store.SSH_TUNNEL_PORT,
-                "username": config_store.SSH_TUNNEL_USER,
-                "password": config_store.SSH_TUNNEL_PASSWORD,
-                "key_path": config_store.SSH_TUNNEL_KEY_PATH,
-                "remote_port": config_store.SSH_REMOTE_PORT,
-            }
-        err = self.ssh_tunnel.start(refresh_config=get_tunnel_config)
-        if err:
-            self.log(f"[Tunnel] {err}")
-            from tkinter import messagebox
-            messagebox.showerror(_("SSH tunnel error"), err)
-            return
-        self._update_tunnel_button_text()
-        self._refresh_qr_and_text()
+        if self.ssh_tunnel.is_active():
+            self.access_mode_var.set(ACCESS_MODE_LAN)
+        else:
+            self.access_mode_var.set(ACCESS_MODE_PUBLIC)
+        self._on_access_mode_changed()
 
     def _show_tunnel_settings(self):
         """Open SSH tunnel settings dialog."""
@@ -444,8 +517,17 @@ class QRWindowManager:
         self._header_widgets["ip_label"].configure(text=_("Select NIC/IP:"))
         self._header_widgets["btn_auto"].configure(text=_("Auto recommended"))
         self._header_widgets["btn_settings"].configure(text=_("Settings"))
-        self._update_tunnel_button_text()
+        if "btn_tunnel_cfg" in self._header_widgets:
+            self._header_widgets["btn_tunnel_cfg"].configure(text=_("Tunnel config"))
         self._header_widgets["cb_run_in_bg"].configure(text=_("Run in background when closed"))
+        # Refresh radio button labels
+        for mode_value, label_key in (
+            (ACCESS_MODE_LOCAL, "Local (this machine only)"),
+            (ACCESS_MODE_LAN,   "LAN (same network)"),
+            (ACCESS_MODE_PUBLIC, "Public (internet)"),
+        ):
+            if mode_value in self._access_radio_btns:
+                self._access_radio_btns[mode_value].configure(text=_(label_key))
         if self.run_in_bg_var:
             self.run_in_bg_var.set(config_store.RUN_IN_BACKGROUND)
         self._reload_ip_list_and_select_current()
@@ -499,8 +581,27 @@ class QRWindowManager:
         dlg.update_idletasks()
         dlg.geometry(f"+{dlg.winfo_screenwidth()//2 - dlg.winfo_reqwidth()//2}+{dlg.winfo_screenheight()//2 - dlg.winfo_reqheight()//2}")
 
+    def _get_url_for_mode(self) -> str:
+        """Return URL appropriate for the current access mode."""
+        mode = self.access_mode_var.get() if hasattr(self, "access_mode_var") else ACCESS_MODE_LAN
+        if mode == ACCESS_MODE_PUBLIC:
+            if self.ssh_tunnel and self.ssh_tunnel.is_active():
+                return self.get_payload_url() or ""
+            # Tunnel not active yet — fall back to LAN URL
+            return self._build_url_for_ip(self._selected_ip())
+        if mode == ACCESS_MODE_LOCAL:
+            return self._build_url_for_ip("127.0.0.1")
+        # LAN: use the selected NIC IP
+        return self._build_url_for_ip(self._selected_ip())
+
+    def _build_url_for_ip(self, ip: str) -> str:
+        """Build a URL for a specific IP using the injected callback, or fall back."""
+        if self.build_url_for_ip:
+            return self.build_url_for_ip(ip) or ""
+        return self.get_payload_url() or ""
+
     def _refresh_qr_and_text(self):
-        url = self.get_payload_url() or ""
+        url = self._get_url_for_mode()
         if not url:
             return
 
@@ -513,8 +614,14 @@ class QRWindowManager:
         self.img_label.configure(image=self.tk_img)
         self.url_label.configure(text=url)
 
-        ip_show = self.get_effective_ip()
-        mode = _("Manual") if (self.get_user_ip() and self.get_user_ip().strip()) else _("Auto")
+        mode = self.access_mode_var.get() if hasattr(self, "access_mode_var") else ACCESS_MODE_LAN
+        if mode == ACCESS_MODE_LOCAL:
+            ip_show = "127.0.0.1"
+        elif mode == ACCESS_MODE_PUBLIC:
+            ip_show = self.get_effective_ip()
+        else:
+            ip_show = self._selected_ip()
+        ip_mode = _("Manual") if (self.get_user_ip() and self.get_user_ip().strip()) else _("Auto")
         http_port, ws_port = self.get_ports()
         llm_line = _("LLM: {model} (enabled)").format(model=config_store.LLM_MODEL) if config_store.LLM_ENABLED else _("LLM: disabled")
         if self.dev_mode:
@@ -523,13 +630,15 @@ class QRWindowManager:
             close_tip = _("Closing this window does not affect background running")
         else:
             close_tip = _("Closing this window will exit the app")
-        if self.ssh_tunnel and self.ssh_tunnel.is_active():
+        if mode == ACCESS_MODE_PUBLIC:
             scan_tip = _("Scan with phone (public internet, anywhere)")
+        elif mode == ACCESS_MODE_LOCAL:
+            scan_tip = _("Local access (this machine only)")
         else:
             scan_tip = _("Scan with phone to open page (same WiFi / same subnet)")
         self.tip_label.configure(
             text=scan_tip + "\n"
-            + _("Mode: {mode}  IP: {ip}").format(mode=mode, ip=ip_show) + "\n"
+            + _("Mode: {mode}  IP: {ip}").format(mode=ip_mode, ip=ip_show) + "\n"
             + _("HTTP:{port}  WS:{port}").format(port=http_port) + "\n"
             + llm_line + "\n"
             + close_tip + "\n"
@@ -546,6 +655,12 @@ class QRWindowManager:
             self.top.after(200, lambda: self.top.attributes("-topmost", False))
         except Exception:
             pass
+
+        # Sync LAN row visibility with current mode
+        if self.access_mode_var.get() == ACCESS_MODE_LAN:
+            self._lan_row.pack(fill="x", padx=10, pady=(2, 2), after=self._mode_row)
+        else:
+            self._lan_row.pack_forget()
 
         self._reload_ip_list_and_select_current()
         self._refresh_qr_and_text()
