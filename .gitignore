@@ -209,6 +209,6 @@ __marimo__/
 icon.png
 packageNoConsle.py
 *.spec
-需求.md
 todo-list.md
 .vscode/
+config.json

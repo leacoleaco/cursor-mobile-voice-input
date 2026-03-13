@@ -347,17 +347,20 @@ function applyI18n(){
   const langSel = document.getElementById("langSelect");
   if(langSel) langSel.value = currentLang;
 }
+let configWsUrl = null;
 async function loadI18n(){
   const params = new URLSearchParams(location.search);
   let lang = params.get("lang");
-  if(!lang){
-    try{
-      const token = params.get("token");
-      const cfgUrl = token ? `/config?token=${encodeURIComponent(token)}` : "/config";
-      const r = await fetch(cfgUrl);
-      if(r.ok){ const c = await r.json(); lang = c.locale || "zh_CN"; }
-    }catch(e){}
-  }
+  try{
+    const token = params.get("token");
+    const cfgUrl = token ? `/config?token=${encodeURIComponent(token)}` : "/config";
+    const r = await fetch(cfgUrl);
+    if(r.ok){
+      const c = await r.json();
+      if(!lang) lang = c.locale || "zh_CN";
+      configWsUrl = c.ws_url || null;
+    }
+  }catch(e){}
   if(!lang) lang = (typeof localStorage !== "undefined" ? localStorage.getItem("lang") : null) || "zh_CN";
   currentLang = lang;
   try{
@@ -471,8 +474,7 @@ function setMode(mode){
 }
 
 async function connectWS(){
-  // HTTP and WebSocket share same port; connect to /ws on same host
-  // Pass token in query so server can validate (browser WebSocket API cannot set custom headers)
+  // Always use current page origin for WebSocket (avoids host mismatch through tunnel)
   const token = new URLSearchParams(location.search).get("token");
   const wsPath = token ? `/ws?token=${encodeURIComponent(token)}` : "/ws";
   const wsUrl = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${wsPath}`;
@@ -485,14 +487,15 @@ async function connectWS(){
     hideDisconnectOverlay();
   };
 
-  ws.onclose = () => {
-    log(t("disconnected"));
+  ws.onclose = (e) => {
+    const msg = e.code ? (t("disconnected") + " (code:" + e.code + (e.reason ? " " + e.reason : "") + ")") : t("disconnected");
+    log(msg);
     updateConnectionUI();
     showDisconnectOverlay(!wsEverConnected);
   };
 
   ws.onerror = () => {
-    log(t("disconnected"));
+    log(t("disconnected") + " " + wsUrl);
     updateConnectionUI();
     showDisconnectOverlay(!wsEverConnected);
   };

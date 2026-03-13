@@ -204,6 +204,7 @@ def create_app(get_url_state):
                 "ws_port": state.get("http_port"),
                 "http_port": state.get("http_port"),
                 "url": state.get("url"),
+                "ws_url": state.get("ws_url"),
                 "locale": config_store.LOCALE,
             }
         )
@@ -356,11 +357,12 @@ def run_server(get_url_state):
     app = create_app(get_url_state)
     dev_mode = os.environ.get("LANVOICE_DEV") in ("1", "true", "yes")
     use_reloader = dev_mode and os.environ.get("LANVOICE_NO_RELOADER") != "1"
-    print(f"HTTP + WebSocket 运行于 http://127.0.0.1:{port} 和 ws://127.0.0.1:{port}/ws")
+    print(f"HTTP + WebSocket 运行于 http://0.0.0.0:{port} 和 ws://0.0.0.0:{port}/ws")
     if use_reloader:
         print("[dev] 热重载已启用，修改 .py 后自动重启")
+    # Bind to 0.0.0.0 so SSH tunnel (and LAN) can connect; 127.0.0.1 can reject tunnel on some systems
     app.run(
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=port,
         debug=dev_mode,
         use_reloader=use_reloader,

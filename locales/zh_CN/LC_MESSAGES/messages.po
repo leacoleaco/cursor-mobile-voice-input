@@ -312,3 +312,78 @@ msgstr "清空"
 
 msgid "Unknown message type"
 msgstr "不存在的消息类型"
+
+msgid "Expose to public"
+msgstr "暴露到公网"
+
+msgid "Stop public exposure"
+msgstr "停止公网暴露"
+
+msgid "Tunnel"
+msgstr "隧道"
+
+msgid "Public exposure (SSH tunnel)"
+msgstr "公网暴露（SSH 隧道）"
+
+msgid "SSH server (host or IP):"
+msgstr "SSH 服务器（主机或 IP）："
+
+msgid "SSH port:"
+msgstr "SSH 端口："
+
+msgid "SSH username:"
+msgstr "SSH 用户名："
+
+msgid "SSH password (optional, prefer key):"
+msgstr "SSH 密码（可选，建议用密钥）："
+
+msgid "Private key path (optional):"
+msgstr "私钥路径（可选）："
+
+msgid "Remote port on server:"
+msgstr "服务器远程端口："
+
+msgid "Server needs GatewayPorts yes in sshd_config for public access."
+msgstr "服务器需在 sshd_config 中设置 GatewayPorts yes 方可公网访问。"
+
+msgid "Use key auth (recommended) for WebSocket reliability."
+msgstr "建议使用密钥认证以保证 WebSocket 连接稳定。"
+
+msgid "SSH tunnel error"
+msgstr "SSH 隧道错误"
+
+msgid "Tunnel already running"
+msgstr "隧道已在运行"
+
+msgid "SSH host and username are required"
+msgstr "SSH 主机和用户名为必填"
+
+msgid "SSH authentication failed: {e}"
+msgstr "SSH 认证失败：{e}"
+
+msgid "Cannot connect to SSH server: {e}"
+msgstr "无法连接 SSH 服务器：{e}"
+
+msgid "SSH error: {e}"
+msgstr "SSH 错误：{e}"
+
+msgid "System ssh not found"
+msgstr "未找到系统 ssh"
+
+msgid "SSH exited immediately"
+msgstr "SSH 立即退出"
+
+msgid "Scan with phone (public internet, anywhere)"
+msgstr "手机扫码（公网，任意位置可用）"
+
+msgid "Log"
+msgstr "日志"
+
+msgid "Tunnel started"
+msgstr "隧道已启动"
+
+msgid "Tunnel stopped"
+msgstr "隧道已停止"
+
+msgid "Log area: tunnel status and errors will appear here"
+msgstr "日志区域：隧道状态和错误信息将显示在此"

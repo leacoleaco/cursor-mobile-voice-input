@@ -21,10 +21,32 @@ from config_store import CONFIG_PATH_FALLBACK, CONFIG_PATH_IN_USE, CONFIG_PATH_P
 from auth_token import generate_token, get_token, set_token
 from http_server import run_server
 from ip_utils import build_urls, choose_free_port, get_effective_ip, get_ipv4_candidates
+
+
+def _http_to_ws_url(http_url: str) -> str:
+    """Convert http(s) URL to ws(s) URL with /ws path, preserving token param."""
+    if not http_url or not http_url.strip():
+        return ""
+    url = http_url.strip()
+    if url.startswith("https://"):
+        rest, prefix = url[8:], "wss://"
+    elif url.startswith("http://"):
+        rest, prefix = url[7:], "ws://"
+    else:
+        return ""
+    if "?" in rest:
+        host_port, qs = rest.split("?", 1)
+        return prefix + host_port.rstrip("/") + "/ws?" + qs
+    return prefix + rest.rstrip("/") + "/ws"
 from notifier import notify
 from qr_window import QRWindowManager
 from settings import DEFAULT_HTTP_PORT, QR_FORCE_LOCALHOST
 from tray_app import run_tray
+
+try:
+    from ssh_tunnel import SSHTunnelManager
+except ImportError:
+    SSHTunnelManager = None
 
 
 def main():
@@ -60,8 +82,33 @@ def main():
         )
         return qr_payload_url
 
+    def get_payload_url():
+        """Return public URL when tunnel active, else LAN URL."""
+        if ssh_tunnel and ssh_tunnel.is_active():
+            return ssh_tunnel.get_public_url(
+                token=get_token() if config_store.AUTH_REQUIRED else None,
+                locale=config_store.LOCALE,
+            )
+        return qr_payload_url
+
+    ssh_tunnel = None
+    if SSHTunnelManager:
+        ssh_tunnel = SSHTunnelManager(
+            host=config_store.SSH_TUNNEL_HOST or "",
+            port=config_store.SSH_TUNNEL_PORT,
+            username=config_store.SSH_TUNNEL_USER or "",
+            local_port=port,
+            remote_port=config_store.SSH_REMOTE_PORT,
+            password=config_store.SSH_TUNNEL_PASSWORD,
+            key_path=config_store.SSH_TUNNEL_KEY_PATH,
+            on_state_change=None,  # Set after qr_mgr created
+        )
+
     def get_url_state():
-        return {"http_port": port, "ws_port": port, "url": qr_payload_url, "qr_url": qr_url}
+        url = get_payload_url()
+        # ws_url: same host/port as HTTP, /ws path, token for auth (required for tunnel/public)
+        ws_url = _http_to_ws_url(url) if url else None
+        return {"http_port": port, "ws_port": port, "url": url, "ws_url": ws_url, "qr_url": qr_url}
 
     def on_ip_change(new_ip):
         config_store.USER_IP = new_ip
@@ -79,12 +126,23 @@ def main():
         on_locale_change=refresh_urls,
         get_effective_ip=lambda: get_effective_ip(config_store.USER_IP),
         get_ports=lambda: (port, port),
-        get_payload_url=lambda: qr_payload_url,
+        get_payload_url=get_payload_url,
         get_config_path=lambda: CONFIG_PATH_IN_USE,
         list_candidates=get_ipv4_candidates,
+        ssh_tunnel=ssh_tunnel,
         dev_mode=dev_mode,
         dev_close_event=dev_close_event,
     )
+    if ssh_tunnel:
+        def on_tunnel_state(active, error):
+            qr_mgr.call(qr_mgr.refresh_qr)
+            if error:
+                qr_mgr.log(f"[Tunnel] {error}")
+            elif active:
+                qr_mgr.log(_("Tunnel started"))
+            else:
+                qr_mgr.log(_("Tunnel stopped"))
+        ssh_tunnel.on_state_change = on_tunnel_state
 
     print("\n======================================")
     print("✅", _("Started"))

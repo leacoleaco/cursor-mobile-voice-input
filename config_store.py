@@ -26,6 +26,14 @@ AUTH_REQUIRED: bool = True  # If True, HTTP/WS require token; if False, no auth 
 LOCALE: str = "zh_CN"  # UI language: zh_CN, en
 RUN_IN_BACKGROUND: bool = True  # If True, closing window minimizes to tray; if False, exits app
 
+# SSH tunnel for public exposure (optional)
+SSH_TUNNEL_HOST: Optional[str] = None
+SSH_TUNNEL_PORT: int = 22
+SSH_TUNNEL_USER: Optional[str] = None
+SSH_TUNNEL_PASSWORD: Optional[str] = None  # Prefer key auth; password stored in config
+SSH_TUNNEL_KEY_PATH: Optional[str] = None
+SSH_REMOTE_PORT: int = 8080  # Port on server to expose (must match local or use GatewayPorts)
+
 
 def _try_write_json(path: str, data: dict) -> bool:
     try:
@@ -64,6 +72,7 @@ def load_config():
 
     def _apply(data: dict):
         global CONFIG_DATA, COMMANDS, USER_IP, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, ACCESS_TOKEN, AUTH_REQUIRED, LOCALE, RUN_IN_BACKGROUND
+        global SSH_TUNNEL_HOST, SSH_TUNNEL_PORT, SSH_TUNNEL_USER, SSH_TUNNEL_PASSWORD, SSH_TUNNEL_KEY_PATH, SSH_REMOTE_PORT
         CONFIG_DATA = data
         COMMANDS = _normalize_commands(data.get("commands"))
         ip = (data.get("user_ip") or "").strip()
@@ -75,6 +84,12 @@ def load_config():
         AUTH_REQUIRED = data.get("auth_required", True)
         LOCALE = (data.get("locale") or "zh_CN").strip() or "zh_CN"
         RUN_IN_BACKGROUND = data.get("run_in_background", True)
+        SSH_TUNNEL_HOST = (data.get("ssh_tunnel_host") or "").strip() or None
+        SSH_TUNNEL_PORT = int(data.get("ssh_tunnel_port") or 22)
+        SSH_TUNNEL_USER = (data.get("ssh_tunnel_user") or "").strip() or None
+        SSH_TUNNEL_PASSWORD = (data.get("ssh_tunnel_password") or "").strip() or None
+        SSH_TUNNEL_KEY_PATH = (data.get("ssh_tunnel_key_path") or "").strip() or None
+        SSH_REMOTE_PORT = int(data.get("ssh_remote_port") or 8080)
 
     data = _try_read_json(CONFIG_PATH_PRIMARY)
     if isinstance(data, dict):
@@ -88,10 +103,16 @@ def load_config():
         CONFIG_PATH_IN_USE = CONFIG_PATH_FALLBACK
         return
 
-    global LOCALE, RUN_IN_BACKGROUND
+    global LOCALE, RUN_IN_BACKGROUND, SSH_TUNNEL_HOST, SSH_TUNNEL_PORT, SSH_TUNNEL_USER, SSH_TUNNEL_PASSWORD, SSH_TUNNEL_KEY_PATH, SSH_REMOTE_PORT
     USER_IP = None
     LOCALE = "zh_CN"
     RUN_IN_BACKGROUND = True
+    SSH_TUNNEL_HOST = None
+    SSH_TUNNEL_PORT = 22
+    SSH_TUNNEL_USER = None
+    SSH_TUNNEL_PASSWORD = None
+    SSH_TUNNEL_KEY_PATH = None
+    SSH_REMOTE_PORT = 8080
     CONFIG_DATA = {"user_ip": None, "commands": [], "run_in_background": True, "llm_enabled": False, "llm_model": "qwen3.5:0.8b", "llm_base_url": "http://127.0.0.1:11434", "access_token": None, "locale": "zh_CN"}
     COMMANDS = []
     LLM_ENABLED = False
@@ -106,6 +127,7 @@ def save_config():
     Prefer exe directory; fall back to user profile when blocked.
     """
     global CONFIG_PATH_IN_USE, CONFIG_DATA, COMMANDS, LLM_ENABLED, LLM_MODEL, LLM_BASE_URL, ACCESS_TOKEN, RUN_IN_BACKGROUND
+    global SSH_TUNNEL_HOST, SSH_TUNNEL_PORT, SSH_TUNNEL_USER, SSH_TUNNEL_PASSWORD, SSH_TUNNEL_KEY_PATH, SSH_REMOTE_PORT
     data = dict(CONFIG_DATA) if isinstance(CONFIG_DATA, dict) else {}
     data["user_ip"] = USER_IP
     data["commands"] = COMMANDS
@@ -116,6 +138,12 @@ def save_config():
     data["access_token"] = ACCESS_TOKEN
     data["auth_required"] = AUTH_REQUIRED
     data["locale"] = LOCALE
+    data["ssh_tunnel_host"] = SSH_TUNNEL_HOST
+    data["ssh_tunnel_port"] = SSH_TUNNEL_PORT
+    data["ssh_tunnel_user"] = SSH_TUNNEL_USER
+    data["ssh_tunnel_password"] = SSH_TUNNEL_PASSWORD
+    data["ssh_tunnel_key_path"] = SSH_TUNNEL_KEY_PATH
+    data["ssh_remote_port"] = SSH_REMOTE_PORT
 
     if _try_write_json(CONFIG_PATH_PRIMARY, data):
         CONFIG_PATH_IN_USE = CONFIG_PATH_PRIMARY

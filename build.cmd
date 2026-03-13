@@ -16,6 +16,8 @@ pyinstaller --onefile --windowed --noconfirm --clean ^
   --name CursorMobileVoiceInput ^
   --add-data "index.html;." ^
   --add-data "icon.ico;." ^
+  --add-data "locales;locales" ^
+  --hidden-import paramiko ^
   --icon icon.ico ^
   server.py
 

@@ -312,3 +312,78 @@ msgstr "Clear"
 
 msgid "Unknown message type"
 msgstr "Unknown message type"
+
+msgid "Expose to public"
+msgstr "Expose to public"
+
+msgid "Stop public exposure"
+msgstr "Stop public exposure"
+
+msgid "Tunnel"
+msgstr "Tunnel"
+
+msgid "Public exposure (SSH tunnel)"
+msgstr "Public exposure (SSH tunnel)"
+
+msgid "SSH server (host or IP):"
+msgstr "SSH server (host or IP):"
+
+msgid "SSH port:"
+msgstr "SSH port:"
+
+msgid "SSH username:"
+msgstr "SSH username:"
+
+msgid "SSH password (optional, prefer key):"
+msgstr "SSH password (optional, prefer key):"
+
+msgid "Private key path (optional):"
+msgstr "Private key path (optional):"
+
+msgid "Remote port on server:"
+msgstr "Remote port on server:"
+
+msgid "Server needs GatewayPorts yes in sshd_config for public access."
+msgstr "Server needs GatewayPorts yes in sshd_config for public access."
+
+msgid "Use key auth (recommended) for WebSocket reliability."
+msgstr "Use key auth (recommended) for WebSocket reliability."
+
+msgid "SSH tunnel error"
+msgstr "SSH tunnel error"
+
+msgid "Tunnel already running"
+msgstr "Tunnel already running"
+
+msgid "SSH host and username are required"
+msgstr "SSH host and username are required"
+
+msgid "SSH authentication failed: {e}"
+msgstr "SSH authentication failed: {e}"
+
+msgid "Cannot connect to SSH server: {e}"
+msgstr "Cannot connect to SSH server: {e}"
+
+msgid "SSH error: {e}"
+msgstr "SSH error: {e}"
+
+msgid "System ssh not found"
+msgstr "System ssh not found"
+
+msgid "SSH exited immediately"
+msgstr "SSH exited immediately"
+
+msgid "Scan with phone (public internet, anywhere)"
+msgstr "Scan with phone (public internet, anywhere)"
+
+msgid "Log"
+msgstr "Log"
+
+msgid "Tunnel started"
+msgstr "Tunnel started"
+
+msgid "Tunnel stopped"
+msgstr "Tunnel stopped"
+
+msgid "Log area: tunnel status and errors will appear here"
+msgstr "Log area: tunnel status and errors will appear here"
