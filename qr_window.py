@@ -289,6 +289,13 @@ class QRWindowManager:
         if not self.ssh_tunnel:
             self.btn_tunnel_cfg.pack_forget()
 
+        # Kill remote port button — helps recover when server port is occupied
+        self.btn_kill_port = ttk.Button(toolbar, text=_("Kill remote port"), command=self._on_kill_remote_port)
+        self.btn_kill_port.pack(side="left", padx=(0, 6))
+        self._header_widgets["btn_kill_port"] = self.btn_kill_port
+        if not self.ssh_tunnel:
+            self.btn_kill_port.pack_forget()
+
         self.run_in_bg_var = tk.BooleanVar(value=config_store.RUN_IN_BACKGROUND)
         cb_bg = ttk.Checkbutton(toolbar, text=_("Run in background when closed"), variable=self.run_in_bg_var, command=self._on_run_in_bg_changed)
         cb_bg.pack(side="left", padx=(6, 0))
@@ -472,6 +479,187 @@ class QRWindowManager:
             self.access_mode_var.set(ACCESS_MODE_PUBLIC)
         self._on_access_mode_changed()
 
+    def _on_kill_remote_port(self):
+        """Connect via SSH and kill the process occupying the remote port, with safety checks."""
+        if not self.ssh_tunnel:
+            return
+
+        host = config_store.SSH_TUNNEL_HOST
+        port = config_store.SSH_TUNNEL_PORT
+        user = config_store.SSH_TUNNEL_USER
+        key_path = config_store.SSH_TUNNEL_KEY_PATH
+        remote_port = config_store.SSH_REMOTE_PORT
+
+        if not host or not user:
+            messagebox.showerror(
+                _("SSH tunnel error"),
+                _("SSH server and username are required. Please configure the tunnel first."),
+            )
+            return
+
+        self.log(_("Checking port {port} on {host}...").format(port=remote_port, host=host))
+        if hasattr(self, "btn_kill_port") and self.btn_kill_port:
+            try:
+                self.btn_kill_port.configure(state="disabled")
+            except Exception:
+                pass
+
+        def _do_check():
+            import shutil
+            import subprocess
+
+            result = {"proc_name": None, "pid": None, "error": None, "killed": False}
+
+            ssh_exe = shutil.which("ssh")
+            if not ssh_exe and os.name == "nt":
+                for p in (os.environ.get("ProgramFiles", ""), os.environ.get("ProgramFiles(x86)", "")):
+                    candidate = os.path.join(p or "", "OpenSSH", "ssh.exe")
+                    if os.path.isfile(candidate):
+                        ssh_exe = candidate
+                        break
+
+            if not ssh_exe:
+                result["error"] = _("System ssh not found. Cannot check remote port.")
+                return result
+
+            base_cmd = [ssh_exe, "-o", "StrictHostKeyChecking=no",
+                        "-o", "ConnectTimeout=10", "-o", "AddressFamily=inet"]
+            if key_path:
+                base_cmd.extend(["-i", key_path])
+            if port != 22:
+                base_cmd.extend(["-p", str(port)])
+            target = f"{user}@{host}"
+
+            # Query: find what program holds the port (ss is fastest; fallback lsof)
+            query = (
+                f"ss -tlnp 'sport = :{remote_port}' 2>/dev/null | "
+                f"grep -oP 'pid=\\K[0-9]+' | head -1 | "
+                f"xargs -I{{}} sh -c 'cat /proc/{{}}/comm 2>/dev/null || ps -p {{}} -o comm= 2>/dev/null'"
+            )
+            pid_query = (
+                f"ss -tlnp 'sport = :{remote_port}' 2>/dev/null | "
+                f"grep -oP 'pid=\\K[0-9]+' | head -1"
+            )
+
+            try:
+                r = subprocess.run(
+                    base_cmd + [target, query],
+                    capture_output=True, text=True, timeout=15,
+                    encoding="utf-8", errors="replace",
+                )
+                proc_name = (r.stdout or "").strip().lower()
+                if not proc_name:
+                    # fallback: try lsof
+                    query2 = (
+                        f"lsof -ti tcp:{remote_port} 2>/dev/null | head -1 | "
+                        f"xargs -I{{}} sh -c 'cat /proc/{{}}/comm 2>/dev/null || ps -p {{}} -o comm= 2>/dev/null'"
+                    )
+                    r2 = subprocess.run(
+                        base_cmd + [target, query2],
+                        capture_output=True, text=True, timeout=15,
+                        encoding="utf-8", errors="replace",
+                    )
+                    proc_name = (r2.stdout or "").strip().lower()
+
+                result["proc_name"] = proc_name if proc_name else None
+
+                # Also grab PID for display
+                r_pid = subprocess.run(
+                    base_cmd + [target, pid_query],
+                    capture_output=True, text=True, timeout=15,
+                    encoding="utf-8", errors="replace",
+                )
+                result["pid"] = (r_pid.stdout or "").strip() or None
+
+            except subprocess.TimeoutExpired:
+                result["error"] = _("SSH connection timed out while checking remote port.")
+                return result
+            except Exception as e:
+                result["error"] = str(e)
+                return result
+
+            if not result["proc_name"]:
+                # Port not occupied — nothing to do
+                result["error"] = _("Port {port} on {host} does not appear to be occupied.").format(
+                    port=remote_port, host=host
+                )
+                return result
+
+            # Safety gate: only auto-kill sshd
+            if "sshd" not in result["proc_name"]:
+                # Return without killing — UI will show warning
+                return result
+
+            # It IS sshd — kill it
+            kill_cmd = (
+                f"fuser -k {remote_port}/tcp 2>/dev/null; "
+                f"pid=$(lsof -ti tcp:{remote_port} 2>/dev/null); "
+                f"[ -n \"$pid\" ] && kill $pid 2>/dev/null; "
+                f"sleep 1"
+            )
+            try:
+                subprocess.run(
+                    base_cmd + [target, kill_cmd],
+                    capture_output=True, text=True, timeout=18,
+                    encoding="utf-8", errors="replace",
+                )
+                result["killed"] = True
+            except subprocess.TimeoutExpired:
+                result["error"] = _("Timeout while killing remote process.")
+            except Exception as e:
+                result["error"] = str(e)
+
+            return result
+
+        def _thread_fn():
+            res = _do_check()
+
+            def _on_done():
+                if hasattr(self, "btn_kill_port") and self.btn_kill_port:
+                    try:
+                        self.btn_kill_port.configure(state="normal")
+                    except Exception:
+                        pass
+
+                if res.get("error"):
+                    self.log(f"[Kill port] {res['error']}")
+                    messagebox.showwarning(_("Kill remote port"), res["error"])
+                    return
+
+                proc = res.get("proc_name") or "unknown"
+                pid = res.get("pid") or "?"
+
+                if "sshd" not in proc:
+                    msg = _(
+                        "Port {port} on {host} is occupied by '{proc}' (PID {pid}), "
+                        "which is NOT sshd.\n\n"
+                        "This program will NOT be killed automatically.\n\n"
+                        "Please consider changing the remote port in Tunnel config to a different one."
+                    ).format(port=remote_port, host=host, proc=proc, pid=pid)
+                    self.log(f"[Kill port] Port {remote_port} held by '{proc}' (PID {pid}) — not killed.")
+                    messagebox.showwarning(_("Kill remote port"), msg)
+                    return
+
+                if res.get("killed"):
+                    self.log(f"[Kill port] sshd process (PID {pid}) on port {remote_port} killed successfully.")
+                    messagebox.showinfo(
+                        _("Kill remote port"),
+                        _("sshd process (PID {pid}) holding port {port} has been killed.\n"
+                          "You can now retry the SSH tunnel connection.").format(
+                            pid=pid, port=remote_port
+                        ),
+                    )
+                else:
+                    self.log(f"[Kill port] Failed to kill sshd (PID {pid}): {res.get('error', '')}")
+                    messagebox.showerror(
+                        _("Kill remote port"),
+                        _("Failed to kill sshd process: {err}").format(err=res.get("error", "")),
+                    )
+
+            self.cmd_q.put(("call", _on_done))
+
+        threading.Thread(target=_thread_fn, daemon=True).start()
+
     def _show_tunnel_settings(self):
         """Open SSH tunnel settings dialog."""
         dlg = tk.Toplevel(self.top if self.top else self.root)
@@ -573,6 +761,8 @@ class QRWindowManager:
         self._header_widgets["btn_settings"].configure(text=_("Settings"))
         if "btn_tunnel_cfg" in self._header_widgets:
             self._header_widgets["btn_tunnel_cfg"].configure(text=_("Tunnel config"))
+        if "btn_kill_port" in self._header_widgets:
+            self._header_widgets["btn_kill_port"].configure(text=_("Kill remote port"))
         self._header_widgets["cb_run_in_bg"].configure(text=_("Run in background when closed"))
         if "cb_ssl" in self._header_widgets:
             self._header_widgets["cb_ssl"].configure(text=_("HTTPS/WSS (self-signed TLS)"))

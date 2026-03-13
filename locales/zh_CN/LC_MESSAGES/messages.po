@@ -414,3 +414,33 @@ msgstr "已连接设备：{n}"
 
 msgid "LAN Voice Input — {n} connected"
 msgstr "LAN 语音输入 — 已连接 {n}"
+
+msgid "Kill remote port"
+msgstr "杀死远程端口进程"
+
+msgid "Checking port {port} on {host}..."
+msgstr "正在检查 {host} 上的端口 {port}..."
+
+msgid "SSH server and username are required. Please configure the tunnel first."
+msgstr "SSH 服务器和用户名为必填项，请先配置隧道。"
+
+msgid "System ssh not found. Cannot check remote port."
+msgstr "未找到系统 ssh，无法检查远程端口。"
+
+msgid "SSH connection timed out while checking remote port."
+msgstr "SSH 连接超时，无法检查远程端口。"
+
+msgid "Port {port} on {host} does not appear to be occupied."
+msgstr "{host} 上的端口 {port} 当前没有被占用。"
+
+msgid "Port {port} on {host} is occupied by '{proc}' (PID {pid}), which is NOT sshd.\n\nThis program will NOT be killed automatically.\n\nPlease consider changing the remote port in Tunnel config to a different one."
+msgstr "{host} 上的端口 {port} 被 '{proc}'（PID {pid}）占用，而非 sshd。\n\n该进程不会被自动杀死。\n\n请在隧道配置中更换一个不同的远程端口。"
+
+msgid "sshd process (PID {pid}) holding port {port} has been killed.\nYou can now retry the SSH tunnel connection."
+msgstr "占用端口 {port} 的 sshd 进程（PID {pid}）已被杀死。\n现在可以重新尝试连接 SSH 隧道。"
+
+msgid "Failed to kill sshd process: {err}"
+msgstr "杀死 sshd 进程失败：{err}"
+
+msgid "Timeout while killing remote process."
+msgstr "杀死远程进程时超时。"
