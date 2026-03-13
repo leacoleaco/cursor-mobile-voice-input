@@ -16,11 +16,11 @@ INTENT_PUNCTUATION = "punctuation"
 INTENT_DELETE_LAST = "delete_last"
 INTENT_DELETE_N = "delete_n"
 INTENT_CLEAR = "clear"
-INTENT_EXECUTE_CONFIG = "execute_config"
 INTENT_UNKNOWN = "unknown"
 
 # Intents that invoke external tools (analyze -> auto execute)
-TOOL_INTENTS: List[str] = [INTENT_EXECUTE_CONFIG]
+# execute_config removed for security - no arbitrary command execution
+TOOL_INTENTS: List[str] = []
 
 # Tool executor registry: intent -> executor(match_string=None, **kwargs) -> {"ok": bool, "message": str}
 # Registered by commands.py to avoid circular imports
@@ -52,10 +52,6 @@ TOOL_SCHEMAS = {
         "name": "clear",
         "description": "User wants to clear all text in the input. Examples: 'clear', 'clear all', '清空'.",
     },
-    INTENT_EXECUTE_CONFIG: {
-        "name": "execute_config",
-        "description": "User wants to run a configured external command. Match against config command match-strings.",
-    },
 }
 
 
@@ -72,16 +68,11 @@ def execute_tool(intent: str, intent_result: dict) -> Optional[Dict[str, Any]]:
     executor = TOOL_EXECUTORS.get(intent)
     if not executor:
         return None
-    if intent == INTENT_EXECUTE_CONFIG:
-        match_string = intent_result.get("match_string")
-        if not match_string:
-            return {"ok": False, "message": "No command matched"}
-        return executor(match_string)
     return executor(**intent_result)
 
 
-def get_intent_prompt_suffix(config_match_strings: list) -> str:
-    """Build the list of intents and config commands for the LLM prompt."""
+def get_intent_prompt_suffix(config_match_strings: list = None) -> str:
+    """Build the list of intents for the LLM prompt."""
     lines = [
         "Available intents (reply with exactly one):",
         f"  - {INTENT_MODIFY_TEXT}: edit/transform text in input box",
@@ -90,10 +81,6 @@ def get_intent_prompt_suffix(config_match_strings: list) -> str:
         f"  - {INTENT_DELETE_LAST}: delete last sentence",
         f"  - {INTENT_DELETE_N}: delete N characters",
         f"  - {INTENT_CLEAR}: clear all text",
+        f"  - {INTENT_UNKNOWN}: none of the above",
     ]
-    if config_match_strings:
-        lines.append("  - execute_config: run external command (match one of):")
-        for ms in config_match_strings:
-            lines.append(f"      \"{ms}\"")
-    lines.append(f"  - {INTENT_UNKNOWN}: none of the above")
     return "\n".join(lines)

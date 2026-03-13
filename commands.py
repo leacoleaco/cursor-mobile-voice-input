@@ -1,9 +1,7 @@
 """Voice command handling: LLM analyzes intent and executes the plan."""
 import json
-import shlex
-import subprocess
 import webbrowser
-from typing import Callable, List
+from typing import Callable
 
 import config_store
 from i18n import _
@@ -24,59 +22,6 @@ from input_control import (
 )
 from llm_assistant import analyze_command_plan, modify_text_via_llm
 from text_handler import handle_text_replace, server_dedup
-
-
-def _run_config_command(match_string: str) -> dict:
-    """Execute a config command by match-string. Returns {ok, message}."""
-    for cmd in config_store.COMMANDS:
-        ms = (cmd.get("match-string") or "").strip()
-        if ms == match_string:
-            command = cmd.get("command")
-            args = cmd.get("args") or []
-            if isinstance(command, str) and command.strip():
-                parts = shlex.split(command, posix=False)
-            elif isinstance(command, list):
-                parts = [str(x) for x in command if str(x).strip()]
-            else:
-                return {"ok": False, "message": _("Command config error")}
-            parts.extend([str(x) for x in args if str(x).strip()])
-            if not parts:
-                return {"ok": False, "message": _("Command config error")}
-            try:
-                completed = subprocess.run(parts, capture_output=True, text=True, timeout=60)
-                ok = completed.returncode == 0
-                stderr = (completed.stderr or "").strip()
-                msg = (_("Command executed successfully") if ok else _("Command execution failed")) + f": {match_string}"
-                if not ok:
-                    msg += f" (exit {completed.returncode})"
-                if stderr:
-                    msg = f"{msg} - {stderr}"
-                return {"ok": ok, "message": msg}
-            except subprocess.TimeoutExpired:
-                return {"ok": False, "message": _("Command execution timeout") + f": {match_string}"}
-            except Exception as e:
-                return {"ok": False, "message": _("Command execution error") + f": {match_string} - {e}"}
-    return {"ok": False, "message": _("Command not found") + f": {match_string}"}
-
-
-def _run_app(app_path: str, app_args: List[str]) -> dict:
-    """Open application. app_path can be name (notepad, calc) or full path."""
-    path = (app_path or "").strip()
-    if not path:
-        return {"ok": False, "message": _("No application specified")}
-    args = [str(x) for x in (app_args or []) if str(x).strip()]
-    parts = [path] + args
-    try:
-        subprocess.Popen(parts, shell=False)
-        return {"ok": True, "message": _("Application opened") + f": {path}"}
-    except FileNotFoundError:
-        try:
-            subprocess.Popen(parts, shell=True)
-            return {"ok": True, "message": _("Application opened") + f": {path}"}
-        except Exception as e:
-            return {"ok": False, "message": _("Failed to open application") + f": {e}"}
-    except Exception as e:
-        return {"ok": False, "message": _("Failed to open application") + f": {e}"}
 
 
 def _run_browser(url: str = None, search_query: str = None) -> dict:
@@ -135,9 +80,7 @@ def handle_command_with_llm(
     7. edit_undo - Undo (e.g. "撤销", "undo")
     8. edit_redo - Redo (e.g. "重做", "redo")
     9. edit_clear - Clear all text (e.g. "清空", "clear")
-    10. open_app - Open software (e.g. "open notepad")
-    11. open_browser - Open browser (e.g. "open browser search xxx")
-    12. execute_config - Run configured command from config
+    10. open_browser - Open browser (e.g. "open browser search xxx")
     """
     text = (raw_text or "").strip()
     if not text:
@@ -154,12 +97,6 @@ def handle_command_with_llm(
         send_result({"type": "cmd_result", "string": text, "ok": False, "message": _("LLM required for command mode")})
         return
 
-    config_match_strings = [
-        (c.get("match-string") or "").strip()
-        for c in config_store.COMMANDS
-        if (c.get("match-string") or "").strip()
-    ]
-
     def on_progress(step: str, msg: str):
         print(f"[cmd] {step}: {msg}")
         send_progress({"type": "cmd_progress", "step": step, "message": msg})
@@ -173,7 +110,6 @@ def handle_command_with_llm(
     try:
         plan = analyze_command_plan(
             text,
-            config_match_strings,
             model=config_store.LLM_MODEL,
             base_url=config_store.LLM_BASE_URL,
             on_stream=on_stream,
@@ -312,27 +248,6 @@ def _execute_single_step(step, text, intent, on_progress, on_stream) -> tuple[bo
         time.sleep(0.03)
         press_key_combo("delete")
         return (True, _("Clear"))
-
-    # --- execute_config ---
-    if intent == "execute_config":
-        match_string = plan.get("match_string", "").strip()
-        if not match_string:
-            return (False, _("No command matched"))
-        on_progress("executing", _("Executing: {resolved}").format(resolved=match_string))
-        result = _run_config_command(match_string)
-        return (result.get("ok", False), result.get("message", ""))
-
-    # --- open_app ---
-    if intent == "open_app":
-        app_path = plan.get("app_path", "").strip()
-        app_args = plan.get("app_args")
-        if isinstance(app_args, list):
-            app_args = [str(x) for x in app_args if str(x).strip()]
-        else:
-            app_args = []
-        on_progress("executing", _("Opening application: {app}").format(app=app_path or "..."))
-        result = _run_app(app_path, app_args)
-        return (result.get("ok", False), result.get("message", ""))
 
     # --- open_browser ---
     if intent == "open_browser":

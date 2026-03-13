@@ -303,14 +303,12 @@ from llm_tools import (
     INTENT_DELETE_LAST,
     INTENT_DELETE_N,
     INTENT_CLEAR,
-    INTENT_EXECUTE_CONFIG,
     INTENT_UNKNOWN,
 )
 
 
 def detect_intent(
     user_command: str,
-    config_match_strings: List[str],
     model: str = "qwen3.5:0.8b",
     base_url: str = "http://127.0.0.1:11434",
     timeout: float = 30.0,
@@ -318,8 +316,7 @@ def detect_intent(
 ) -> dict:
     """
     Use LLM to detect user intent from voice command. All prompts in English.
-    Returns dict: { "intent": str, "match_string": str|None, "punctuation": str|None, "delete_n": int|None }
-    - match_string: for execute_config, the matched config command
+    Returns dict: { "intent": str, "punctuation": str|None, "delete_n": int|None }
     - punctuation: for punctuation intent, the char to insert (e.g. "，", "。")
     - delete_n: for delete_n intent, number of chars to delete
     """
@@ -330,14 +327,13 @@ def detect_intent(
     if not _check_ollama(base_url):
         return {"intent": INTENT_UNKNOWN}
 
-    suffix = get_intent_prompt_suffix(config_match_strings or [])
+    suffix = get_intent_prompt_suffix()
 
     prompt = f"""You are a voice command assistant. The user said (in any language): "{user_command}"
 
 {suffix}
 
 Reply with ONLY the intent name (e.g. modify_text, newline, comma, etc.). For punctuation intent, reply with the punctuation name: comma, period, question, exclamation, colon, semicolon, pause_comma.
-For execute_config, reply with: execute_config:"exact_match_string" (use the exact config match string).
 For delete_n, reply with: delete_n:N (e.g. delete_n:3 for "delete 3 characters").
 No explanation, no quotes, just the intent or intent:param."""
 
@@ -351,7 +347,7 @@ No explanation, no quotes, just the intent or intent:param."""
         )
         if content:
             content = content.strip().strip("\"'").lower()
-            result[0] = _parse_intent_response(content, config_match_strings or [])
+            result[0] = _parse_intent_response(content)
 
     t = threading.Thread(target=_call, daemon=True)
     t.start()
@@ -361,7 +357,7 @@ No explanation, no quotes, just the intent or intent:param."""
     return out if isinstance(out, dict) else {"intent": INTENT_UNKNOWN}
 
 
-def _parse_intent_response(content: str, config_match_strings: List[str]) -> dict:
+def _parse_intent_response(content: str) -> dict:
     """Parse LLM response into intent dict."""
     content = (content or "").strip().lower()
 
@@ -372,16 +368,6 @@ def _parse_intent_response(content: str, config_match_strings: List[str]) -> dic
             return {"intent": INTENT_DELETE_N, "delete_n": max(1, min(n, 999))}
         except (ValueError, IndexError):
             pass
-
-    # execute_config:"match_string"
-    if content.startswith("execute_config:"):
-        rest = content.split(":", 1)[1].strip().strip("\"'")
-        for ms in config_match_strings:
-            if not ms:
-                continue
-            ms_clean = ms.strip()
-            if rest == ms_clean.lower() or rest in ms_clean.lower() or ms_clean.lower() in rest:
-                return {"intent": INTENT_EXECUTE_CONFIG, "match_string": ms_clean}
 
     # Punctuation mapping
     punc_map = {
@@ -552,7 +538,6 @@ def modify_text_via_llm(
 
 def analyze_command_plan(
     user_command: str,
-    config_match_strings: List[str],
     model: str = "qwen3.5:0.8b",
     base_url: str = "http://127.0.0.1:11434",
     timeout: float = 30.0,
@@ -561,13 +546,10 @@ def analyze_command_plan(
     """
     Use LLM to analyze user command and return execution plan.
     Returns: {
-        "intent": "modify_text" | "open_app" | "open_browser" | "execute_config" | "unknown",
+        "intent": "modify_text" | "open_browser" | "unknown",
         "instruction": str,      # for modify_text
-        "app_path": str,        # for open_app (exe path or app name like notepad)
-        "app_args": list,       # for open_app
         "url": str,             # for open_browser direct URL
         "search_query": str,    # for open_browser search
-        "match_string": str,    # for execute_config
     }
     """
     user_command = (user_command or "").strip()
@@ -576,13 +558,6 @@ def analyze_command_plan(
 
     if not _check_ollama(base_url):
         return {"intent": "unknown"}
-
-    config_section = ""
-    if config_match_strings:
-        config_section = f"""
-Configured commands (use execute_config with exact match_string if user intent matches):
-{chr(10).join(f'  - "{ms}"' for ms in config_match_strings if ms)}
-"""
 
     prompt = f"""You are a voice command analyzer. The user said (in any language): "{user_command}"
 
@@ -602,11 +577,8 @@ Available intents:
 7. edit_undo - Undo. Output: {{"intent":"edit_undo"}}
 8. edit_redo - Redo. Output: {{"intent":"edit_redo"}}
 9. edit_clear - Clear all. Output: {{"intent":"edit_clear"}}
-10. open_app - Open app. Output: {{"intent":"open_app","app_path":"<path>","app_args":[]}}
-11. open_browser - Open browser. Output: {{"intent":"open_browser","url":"..."}} or {{"intent":"open_browser","search_query":"..."}}
-{config_section}
-12. execute_config - Run configured command. Output: {{"intent":"execute_config","match_string":"<exact match>"}}
-13. unknown - None match. Output: {{"intent":"unknown"}}
+10. open_browser - Open browser. Output: {{"intent":"open_browser","url":"..."}} or {{"intent":"open_browser","search_query":"..."}}
+11. unknown - None match. Output: {{"intent":"unknown"}}
 
 Examples of compound commands:
 - "全选后复制" or "帮我全选文字后并复制" -> {{"steps":[{{"intent":"edit_select_all"}},{{"intent":"edit_copy"}}]}} OR {{"intent":"edit_select_all_copy"}}
@@ -656,15 +628,8 @@ Reply with ONLY valid JSON, no explanation, no markdown code block."""
                     result[0] = {"intent": "edit_redo"}
                 elif "edit_clear" in lower or "clear" in lower:
                     result[0] = {"intent": "edit_clear"}
-                elif "open_app" in lower or "open app" in lower:
-                    result[0] = {"intent": "open_app", "app_path": "notepad", "app_args": []}
                 elif "open_browser" in lower or "open browser" in lower:
                     result[0] = {"intent": "open_browser", "search_query": user_command}
-                elif "execute_config" in lower:
-                    for ms in config_match_strings or []:
-                        if ms and ms.lower() in lower:
-                            result[0] = {"intent": "execute_config", "match_string": ms}
-                            break
                 if result[0] is None:
                     result[0] = {"intent": "unknown"}
 
