@@ -86,6 +86,10 @@ WEB_TRANSLATIONS = {
         "close": "关闭",
         "clipboardPreview": "📥 剪贴板预览：",
         "keySent": "⌨️ 发送：",
+        "wsConnecting": "正在连接...",
+        "wsRetrying": "正在重试第 {n} 次…",
+        "wsRetryInfo": "第 {n} 次重试，{s} 秒后重连",
+        "cancel": "取消",
     },
     "en": {
         "title": "LAN Voice Input",
@@ -171,5 +175,9 @@ WEB_TRANSLATIONS = {
         "close": "Close",
         "clipboardPreview": "📥 Clipboard: ",
         "keySent": "⌨️ Sent: ",
+        "wsConnecting": "Connecting...",
+        "wsRetrying": "Retry #{n}…",
+        "wsRetryInfo": "Retry #{n}, reconnecting in {s}s",
+        "cancel": "Cancel",
     },
 }
