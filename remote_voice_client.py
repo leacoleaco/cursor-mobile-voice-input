@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import ssl
 import sys
 import threading
@@ -64,6 +65,96 @@ def whisper_download_root(cfg: dict) -> Path:
             p = _base_dir() / p
         return p.resolve()
     return (_base_dir() / "whisper_models").resolve()
+
+
+def _looks_like_local_model_path(model_name: str) -> bool:
+    m = (model_name or "").strip()
+    if not m:
+        return False
+    if len(m) >= 2 and m[1] == ":":
+        return True
+    if m.startswith("\\\\"):
+        return True
+    if m.startswith("./") or m.startswith("../"):
+        return True
+    if m.startswith("/") and sys.platform != "win32":
+        return True
+    try:
+        p = Path(m)
+        if p.is_absolute() or p.is_dir():
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def whisper_hf_repo_id(model_name: str) -> Optional[str]:
+    """Map config whisper_model short name or hub id to Hugging Face repo id, or None if local path."""
+    m = (model_name or "").strip()
+    if not m:
+        m = "base"
+    norm = m.replace("\\", "/")
+    if re.fullmatch(r"[\w.-]+/[\w.-]+", norm):
+        return norm
+    if _looks_like_local_model_path(m):
+        return None
+    try:
+        from faster_whisper.utils import _MODELS
+
+        return _MODELS.get(m)
+    except Exception:
+        return None
+
+
+def build_whisper_download_help_text(cfg: dict, model_name: str, exc: Optional[BaseException]) -> str:
+    """Human-readable help with HF URLs when the model fails to load."""
+    root = whisper_download_root(cfg)
+    repo = whisper_hf_repo_id(model_name)
+    err = str(exc).strip() if exc else "(未知错误)"
+    lines = [
+        "【模型未能加载】",
+        f"错误信息: {err}",
+        "",
+        f"当前 whisper_model: {model_name}",
+        f"模型缓存目录（程序自动下载时使用）: {root}",
+        "",
+    ]
+    if repo:
+        page = f"https://huggingface.co/{repo}"
+        subdir = repo.replace("/", "--")
+        local_example = root / subdir
+        lines.extend(
+            [
+                "Hugging Face 模型主页（浏览器打开，在 Files and versions 中可下载全部文件）:",
+                page,
+                "",
+                "命令行下载（需先: pip install huggingface_hub）:",
+                f'huggingface-cli download {repo} --local-dir "{local_example}"',
+                "",
+                "下载完成后，把界面里「模型」一栏改成上面 --local-dir 的文件夹路径并保存配置，",
+                "或直接编辑 remote_client_config.json 中的 whisper_model。",
+                "",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "当前配置看起来像本地路径或无法映射到预置模型名。",
+                "预置模型「base」的下载页示例:",
+                "https://huggingface.co/Systran/faster-whisper-base",
+                "（tiny / small / medium / large-v3 等同系列，仓库名中的 base 换成对应尺寸即可）",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "手动安装: 仓库内需包含 model.bin、config.json、tokenizer.json、vocabulary*.json 等，放在同一文件夹内。",
+            "若打包 exe 提示缺少 silero_vad_v6.onnx，请用项目里的 build_remote_client.cmd 重新打包（会收集 VAD 资源）。",
+            "",
+            "若已改配置仍不生效，请关闭并重新打开本客户端后再试。",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def default_config() -> dict:
@@ -407,9 +498,15 @@ class HotkeyHoldController:
 
 
 class VoicePipeline:
-    def __init__(self, cfg: dict, status_cb: Callable[[str], None]):
+    def __init__(
+        self,
+        cfg: dict,
+        status_cb: Callable[[str], None],
+        model_help_cb: Optional[Callable[[str], None]] = None,
+    ):
         self.cfg = cfg
         self._status = status_cb
+        self._model_help = model_help_cb
         self._model = None
         self._model_lock = threading.Lock()
         self._recording = threading.Event()
@@ -428,14 +525,19 @@ class VoicePipeline:
         self._status(f"加载 Whisper 模型 {model_name} ({dev}/{ct})，目录 {root}…")
         self._model = WhisperModel(model_name, device=dev, compute_type=ct, download_root=str(root))
         self._status("模型就绪")
+        if self._model_help:
+            self._model_help("")
 
     def ensure_model(self) -> bool:
         with self._model_lock:
             if self._model is None:
+                model_name = (self.cfg.get("whisper_model") or "base").strip()
                 try:
                     self.load_model()
                 except Exception as e:
                     self._status(f"模型加载失败: {e}")
+                    if self._model_help:
+                        self._model_help(build_whisper_download_help_text(self.cfg, model_name, e))
                     return False
             return True
 
@@ -536,11 +638,13 @@ class App:
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title("Remote Voice Client — faster-whisper")
-        self.root.geometry("520x380")
+        self.root.geometry("560x560")
         self.cfg = load_config()
         self.ws = WsClient()
         self.pipeline: Optional[VoicePipeline] = None
         self.hotkey: Optional[HotkeyHoldController] = None
+        self._model_help_plain: str = ""
+        self._model_help_text: Optional[tk.Text] = None
         self._toast_win: Optional[tk.Toplevel] = None
         self._toast_status_lbl: Optional[tk.Label] = None
         self._toast_after_id: Optional[str] = None
@@ -572,8 +676,7 @@ class App:
             row5,
             textvariable=self.var_model,
             values=("tiny", "base", "small", "medium", "large-v3"),
-            width=12,
-            state="readonly",
+            width=28,
         ).pack(side=tk.LEFT, padx=(6, 16))
         ttk.Label(row5, text="device").pack(side=tk.LEFT)
         self.var_dev = tk.StringVar(value=self.cfg.get("device", "auto"))
@@ -586,23 +689,75 @@ class App:
         ttk.Button(bf, text="复制示例配置到目录", command=self.copy_example).pack(side=tk.LEFT)
 
         self.status = tk.StringVar(value="启动中…")
-        ttk.Label(f, textvariable=self.status, wraplength=480, foreground="#333").grid(row=5, column=0, sticky="w")
+        ttk.Label(f, textvariable=self.status, wraplength=520, foreground="#333").grid(row=5, column=0, sticky="w")
+
+        help_frame = ttk.LabelFrame(f, text="模型下载说明（加载失败时自动显示）")
+        help_frame.grid(row=6, column=0, sticky="nsew", pady=(8, 0))
+        help_inner = ttk.Frame(help_frame, padding=4)
+        help_inner.pack(fill=tk.BOTH, expand=True)
+        hf = ttk.Frame(help_inner)
+        hf.pack(fill=tk.X)
+        ttk.Button(hf, text="复制本段说明", command=self._copy_model_help_clicked).pack(side=tk.RIGHT)
+        self._model_help_text = tk.Text(
+            help_inner,
+            height=9,
+            width=64,
+            wrap="word",
+            font=("Consolas", 9),
+            state="disabled",
+            background="#fafafa",
+            relief="flat",
+        )
+        help_sb = ttk.Scrollbar(help_inner, command=self._model_help_text.yview)
+        self._model_help_text.configure(yscrollcommand=help_sb.set)
+        self._model_help_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        help_sb.pack(side=tk.RIGHT, fill=tk.Y)
+
         ttk.Label(
             f,
             text="按住热键录音，松开后识别并发送到服务端当前焦点窗口。\n"
             "若焦点在远程桌面里且热键无反应，请把客户端装在麦克风所在机器，或调整远程桌面「Windows 组合键」为「应用于此计算机」。",
-            wraplength=500,
+            wraplength=520,
             foreground="#666",
             font=("Segoe UI", 9),
-        ).grid(row=6, column=0, sticky="w", pady=(12, 0))
+        ).grid(row=7, column=0, sticky="w", pady=(12, 0))
 
         f.columnconfigure(0, weight=1)
+        f.rowconfigure(6, weight=1)
 
     def set_status(self, s: str) -> None:
         def u():
             self.status.set(s)
 
         self.root.after(0, u)
+
+    def set_model_help(self, text: str) -> None:
+        """Show or clear multi-line model download help (thread-safe via Tk thread)."""
+        self._model_help_plain = text or ""
+
+        def u():
+            if not self._model_help_text:
+                return
+            self._model_help_text.configure(state="normal")
+            self._model_help_text.delete("1.0", "end")
+            if text:
+                self._model_help_text.insert("1.0", text)
+            self._model_help_text.configure(state="disabled")
+
+        self.root.after(0, u)
+
+    def _copy_model_help_clicked(self) -> None:
+        s = (self._model_help_plain or "").strip()
+        if not s:
+            messagebox.showinfo("提示", "当前没有说明内容（模型加载成功或未尝试加载时为空）。")
+            return
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(s)
+            self.root.update_idletasks()
+            self.set_status("已复制模型下载说明到剪贴板")
+        except Exception as e:
+            messagebox.showerror("复制失败", str(e))
 
     def _dismiss_transcript_toast(self) -> None:
         if self._toast_after_id is not None:
@@ -744,7 +899,7 @@ class App:
 
     def _bootstrap(self) -> None:
         self.cfg = self._read_ui_cfg() if hasattr(self, "var_server") else load_config()
-        self.pipeline = VoicePipeline(self.cfg, self.set_status)
+        self.pipeline = VoicePipeline(self.cfg, self.set_status, self.set_model_help)
         if not self.pipeline.start_stream():
             return
         self.pipeline.ensure_model()
