@@ -5,6 +5,7 @@
   "verify_ssl": false,
   "hotkey": "ctrl+shift+space",
   "whisper_model": "base",
+  "whisper_models_dir": "",
   "device": "auto",
   "compute_type": "auto",
   "sample_rate": 16000,

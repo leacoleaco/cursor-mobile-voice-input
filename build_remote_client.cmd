@@ -10,6 +10,7 @@ echo [build-remote-client] Building RemoteVoiceClient.exe ...
 pyinstaller --onefile --windowed --noconfirm --clean ^
   --name RemoteVoiceClient ^
   --collect-submodules faster_whisper ^
+  --collect-all faster_whisper ^
   --collect-all ctranslate2 ^
   --hidden-import sounddevice ^
   --hidden-import numpy ^

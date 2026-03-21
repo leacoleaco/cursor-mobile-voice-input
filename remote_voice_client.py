@@ -9,6 +9,9 @@ transcribe with faster-whisper, then send text to the PC running the main server
 Config: remote_client_config.json next to this script or next to the packaged .exe
 (copy from remote_client_config.example.json).
 
+Whisper weights: by default downloaded to a folder ``whisper_models`` next to the .exe (or script).
+Override with ``whisper_models_dir`` in the JSON (relative paths are under the exe directory).
+
 RDP / 远程桌面与热键:
 - 麦克风在哪台电脑，客户端就应装在哪台电脑。
 - 若在「本机」开着远程桌面窗口且焦点在远程会话里，多数按键会被送给远端，本机钩子可能收不到。
@@ -52,6 +55,17 @@ def config_path() -> Path:
     return _base_dir() / CONFIG_NAME
 
 
+def whisper_download_root(cfg: dict) -> Path:
+    """Directory for faster-whisper / Hugging Face model cache (default: <exe_dir>/whisper_models)."""
+    custom = (cfg.get("whisper_models_dir") or "").strip()
+    if custom:
+        p = Path(custom)
+        if not p.is_absolute():
+            p = _base_dir() / p
+        return p.resolve()
+    return (_base_dir() / "whisper_models").resolve()
+
+
 def default_config() -> dict:
     return {
         "server_address": "",
@@ -60,6 +74,7 @@ def default_config() -> dict:
         "verify_ssl": False,
         "hotkey": "ctrl+shift+space",
         "whisper_model": "base",
+        "whisper_models_dir": "",
         "device": "auto",
         "compute_type": "auto",
         "sample_rate": 16000,
@@ -408,8 +423,10 @@ class VoicePipeline:
 
         dev, ct = resolve_device_compute(str(self.cfg.get("device", "auto")), str(self.cfg.get("compute_type", "auto")))
         model_name = (self.cfg.get("whisper_model") or "base").strip()
-        self._status(f"加载 Whisper 模型 {model_name} ({dev}/{ct})…")
-        self._model = WhisperModel(model_name, device=dev, compute_type=ct)
+        root = whisper_download_root(self.cfg)
+        root.mkdir(parents=True, exist_ok=True)
+        self._status(f"加载 Whisper 模型 {model_name} ({dev}/{ct})，目录 {root}…")
+        self._model = WhisperModel(model_name, device=dev, compute_type=ct, download_root=str(root))
         self._status("模型就绪")
 
     def ensure_model(self) -> bool:
@@ -487,8 +504,22 @@ class VoicePipeline:
             )
             text = "".join(s.text for s in segments).strip()
         except Exception as e:
-            self._status(f"识别失败: {e}")
-            return None
+            err_l = str(e).lower()
+            if any(x in err_l for x in ("onnx", "silero", "no_suchfile", "vad")):
+                self._status("VAD 资源不可用，改为无 VAD 识别…")
+                try:
+                    segments, _info = self._model.transcribe(
+                        audio,
+                        language=lang,
+                        vad_filter=False,
+                    )
+                    text = "".join(s.text for s in segments).strip()
+                except Exception as e2:
+                    self._status(f"识别失败: {e2}")
+                    return None
+            else:
+                self._status(f"识别失败: {e}")
+                return None
         if not text:
             self._status("未识别到语音")
             return None
