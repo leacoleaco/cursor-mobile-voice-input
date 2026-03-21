@@ -67,6 +67,15 @@ msgstr "HTTP:{port}  WS:{port}"
 msgid "Config file: {path}"
 msgstr "配置文件：{path}"
 
+msgid "Copy server address"
+msgstr "复制服务端地址"
+
+msgid "Server address copied to clipboard"
+msgstr "服务端地址已复制到剪贴板"
+
+msgid "Copy failed: {err}"
+msgstr "复制失败：{err}"
+
 msgid "Clipboard empty or unreadable"
 msgstr "剪贴板为空或无法读取"
 

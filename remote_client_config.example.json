@@ -1,0 +1,12 @@
+{
+  "server_address": "http://192.168.1.100:8765?token=paste_from_server_copy_button_if_auth",
+  "ws_url": "ws://192.168.1.100:8765/ws",
+  "token": "",
+  "verify_ssl": false,
+  "hotkey": "ctrl+shift+space",
+  "whisper_model": "base",
+  "device": "auto",
+  "compute_type": "auto",
+  "sample_rate": 16000,
+  "language": null
+}

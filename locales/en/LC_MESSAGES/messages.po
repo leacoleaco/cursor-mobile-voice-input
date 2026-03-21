@@ -67,6 +67,15 @@ msgstr "HTTP:{port}  WS:{port}"
 msgid "Config file: {path}"
 msgstr "Config file: {path}"
 
+msgid "Copy server address"
+msgstr "Copy server address"
+
+msgid "Server address copied to clipboard"
+msgstr "Server address copied to clipboard"
+
+msgid "Copy failed: {err}"
+msgstr "Copy failed: {err}"
+
 msgid "Clipboard empty or unreadable"
 msgstr "Clipboard empty or unreadable"
 

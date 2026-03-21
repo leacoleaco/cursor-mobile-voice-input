@@ -98,6 +98,7 @@ class QRWindowManager:
 
         self.img_label = None
         self.url_label = None
+        self.url_copy_btn = None
         self.tip_label = None
         self.conn_label = None
         self.log_text = None
@@ -185,6 +186,7 @@ class QRWindowManager:
             self._lan_row = None
             self.img_label = None
             self.url_label = None
+            self.url_copy_btn = None
             self.tip_label = None
             self.conn_label = None
             self.log_text = None
@@ -215,6 +217,7 @@ class QRWindowManager:
         self._lan_row = None
         self.img_label = None
         self.url_label = None
+        self.url_copy_btn = None
         self.tip_label = None
         self.conn_label = None
         self.log_text = None
@@ -309,8 +312,17 @@ class QRWindowManager:
         self.img_label = ttk.Label(self.top)
         self.img_label.pack(padx=10, pady=10)
 
-        self.url_label = ttk.Label(self.top, font=("Arial", 12))
-        self.url_label.pack(padx=10, pady=(0, 6))
+        url_row = ttk.Frame(self.top)
+        url_row.pack(fill="x", padx=10, pady=(0, 6))
+        self.url_copy_btn = ttk.Button(
+            url_row,
+            text=_("Copy server address"),
+            command=self._copy_server_url,
+            state="disabled",
+        )
+        self.url_copy_btn.pack(side="right", padx=(8, 0))
+        self.url_label = ttk.Label(url_row, font=("Arial", 12))
+        self.url_label.pack(side="left", fill="x", expand=True, anchor="w")
 
         self.tip_label = ttk.Label(self.top, font=("Arial", 10), foreground="#333", justify="center")
         self.tip_label.pack(padx=10, pady=(0, 6))
@@ -766,6 +778,8 @@ class QRWindowManager:
         self._header_widgets["cb_run_in_bg"].configure(text=_("Run in background when closed"))
         if "cb_ssl" in self._header_widgets:
             self._header_widgets["cb_ssl"].configure(text=_("HTTPS/WSS (self-signed TLS)"))
+        if self.url_copy_btn:
+            self.url_copy_btn.configure(text=_("Copy server address"))
         if self.ssl_var:
             self.ssl_var.set(config_store.SSL_ENABLED)
         # Refresh radio button labels
@@ -836,6 +850,31 @@ class QRWindowManager:
             return False
         return not (self.ssh_tunnel and self.ssh_tunnel.is_active())
 
+    def _sync_url_copy_btn_state(self):
+        """Enable copy when a non-empty URL is shown."""
+        if not self.url_copy_btn or not self.url_label:
+            return
+        try:
+            text = (self.url_label.cget("text") or "").strip()
+        except Exception:
+            text = ""
+        self.url_copy_btn.configure(state="normal" if text else "disabled")
+
+    def _copy_server_url(self):
+        """Copy the current server URL (same as QR payload) to the system clipboard."""
+        if not self.top or not self.url_label:
+            return
+        url = (self.url_label.cget("text") or "").strip()
+        if not url:
+            return
+        try:
+            self.top.clipboard_clear()
+            self.top.clipboard_append(url)
+            self.top.update_idletasks()
+            self.log(_("Server address copied to clipboard"))
+        except Exception as ex:
+            self.log(_("Copy failed: {err}").format(err=str(ex)))
+
     def _get_url_for_mode(self) -> str:
         """Return URL appropriate for the current access mode."""
         mode = self.access_mode_var.get() if hasattr(self, "access_mode_var") else ACCESS_MODE_LAN
@@ -863,6 +902,7 @@ class QRWindowManager:
             # Public mode, tunnel not yet active — show loading placeholder
             self._show_loading_qr()
             self.url_label.configure(text="")
+            self._sync_url_copy_btn_state()
             self.tip_label.configure(
                 text=_("Connecting to SSH tunnel, please wait…")
             )
@@ -884,6 +924,7 @@ class QRWindowManager:
 
         self.img_label.configure(image=self.tk_img, text="", compound="none")
         self.url_label.configure(text=url)
+        self._sync_url_copy_btn_state()
 
         if mode == ACCESS_MODE_LOCAL:
             ip_show = "127.0.0.1"
