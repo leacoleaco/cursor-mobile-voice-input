@@ -1165,6 +1165,8 @@ const box = document.getElementById("inputBox");
 
 let emptyInputBackspaceSentAt = 0;
 const EMPTY_BS_DEDUP_MS = 120;
+let emptyInputNewlineSentAt = 0;
+const EMPTY_NL_DEDUP_MS = 120;
 
 /**
  * When the textarea has no text and the user is not in IME composition, forward Backspace/删除
@@ -1191,9 +1193,39 @@ function sendRemoteBackspaceIfInputEmpty(e) {
   return true;
 }
 
+/**
+ * When the textarea has no text and the user is not in IME composition, forward Enter/换行
+ * to the PC like the 换行 button (same as { type: "key", key: "shift+enter" }). Dedup keydown +
+ * beforeinput for mobile IME.
+ */
+function sendRemoteNewlineIfInputEmpty(e) {
+  if (currentMode !== "text" && currentMode !== "cmd") return false;
+  if (isComposing) return false;
+  if ((box.value || "").length > 0) return false;
+  const now = Date.now();
+  if (now - emptyInputNewlineSentAt < EMPTY_NL_DEDUP_MS) {
+    if (e && e.cancelable) e.preventDefault();
+    return true;
+  }
+  emptyInputNewlineSentAt = now;
+  if (e && e.cancelable) e.preventDefault();
+  if (!ws || ws.readyState !== 1) {
+    log(t("wsKeyError"));
+    return true;
+  }
+  ws.send(JSON.stringify({ type: "key", key: "shift+enter" }));
+  log(t("keySent") + (t("newline") || "shift+enter"));
+  return true;
+}
+
 box.addEventListener("beforeinput", (e) => {
-  if (e.inputType !== "deleteContentBackward") return;
-  sendRemoteBackspaceIfInputEmpty(e);
+  if (e.inputType === "deleteContentBackward") {
+    sendRemoteBackspaceIfInputEmpty(e);
+    return;
+  }
+  if (e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") {
+    sendRemoteNewlineIfInputEmpty(e);
+  }
 });
 
 box.addEventListener("keydown", (e) => {
@@ -1204,6 +1236,10 @@ box.addEventListener("keydown", (e) => {
   }
   if (e.key === "Backspace") {
     sendRemoteBackspaceIfInputEmpty(e);
+    return;
+  }
+  if (e.key === "Enter") {
+    sendRemoteNewlineIfInputEmpty(e);
   }
 });
 box.addEventListener("compositionstart", () => isComposing = true);
