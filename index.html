@@ -7,7 +7,7 @@
   <style>
     html, body { touch-action: manipulation; }
     body { font-family: sans-serif; padding: 16px; }
-    .input-box-wrap { position: relative; width: 100%; margin-top: 12px; }
+    .input-box-wrap { position: relative; width: 100%; margin-top: 12px; padding-bottom: 54px; }
     .input-box-wrap .send-btn-float { position: absolute; bottom: 10px; right: 10px; margin: 0; z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
     .input-box-wrap .send-btn-float-left { left: 10px; right: auto; }
     .input-box-wrap .send-btn-float-center { left: 50%; right: auto; transform: translateX(-50%); }
@@ -17,7 +17,7 @@
     .input-box-wrap .send-btn-float-left-of-center { bottom: 10px; top: auto; left: auto; right: 50%; margin-right: 8px; transform: translateX(-100%); }
     .input-box-wrap .send-buttons-row { position: absolute; bottom: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: center; gap: 6px; z-index: 2; }
     .input-box-wrap .send-buttons-row .action-btn { position: static; flex: 1; min-width: 0; margin: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-    textarea { width: 100%; height: 140px; font-size: 18px; padding: 12px; padding-left: 90px; padding-right: 90px; padding-bottom: 52px; margin-top: 0; border-radius: 10px; border: 1px solid #ddd;box-sizing: border-box;resize: vertical; display: block ;overflow: auto; transition: border-color 0.2s, background-color 0.2s; }
+    #inputBox { width: 100%; min-height: 52px; height: 52px; font-size: 18px; padding: 10px 90px 10px 90px; margin-top: 0; border-radius: 10px; border: 1px solid #ddd; box-sizing: border-box; display: block; overflow: hidden; text-overflow: ellipsis; transition: border-color 0.2s, background-color 0.2s; }
     #inputBox.connected { border-color: #34c759; background: #f0fff4; }
     #inputBox.disconnected { border-color: #dc3545; background: #fff5f5; }
     button { font-size: 18px; padding: 12px 16px; margin-top: 10px; border-radius: 10px; border: 1px solid #d7d7d7; background: #f7f7f7; color: #222; box-shadow: 0 1px 0 rgba(0,0,0,0.04); }
@@ -193,7 +193,7 @@
   </div>
   <div class="panel-text-cmd">
     <div class="input-box-wrap">
-      <textarea id="inputBox" class="disconnected" data-i18n-placeholder="placeholderText" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）"></textarea>
+      <input type="text" id="inputBox" class="disconnected" enterkeyhint="done" autocomplete="off" autocorrect="on" spellcheck="true" data-i18n-placeholder="placeholderText" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）" />
       <button class="action-btn shortcut-coffee send-btn-float send-btn-float-top-left" data-key="@" title="@">@</button>
       <button class="action-btn send-btn-float send-btn-float-top-right" data-key="backspace" data-i18n-title="backspace" title="退格">⌫</button>
       <div class="send-buttons-row">
@@ -1222,7 +1222,7 @@ let emptyInputNewlineSentAt = 0;
 const EMPTY_NL_DEDUP_MS = 120;
 
 /**
- * When the textarea has no text and the user is not in IME composition, forward Backspace/删除
+ * When the input has no text and the user is not in IME composition, forward Backspace/删除
  * to the PC like the ⌫ button (same as { type: "key", key: "backspace" }). Dedup keydown +
  * beforeinput for mobile IME.
  */
@@ -1247,7 +1247,7 @@ function sendRemoteBackspaceIfInputEmpty(e) {
 }
 
 /**
- * When the textarea has no text and the user is not in IME composition, forward Enter/换行
+ * When the input has no text and the user is not in IME composition, forward Enter/换行
  * to the PC like the 换行 button (same as { type: "key", key: "shift+enter" }). Dedup keydown +
  * beforeinput for mobile IME.
  */
