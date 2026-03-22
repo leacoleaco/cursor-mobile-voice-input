@@ -5,8 +5,9 @@ WEB_TRANSLATIONS = {
     "zh_CN": {
         "title": "局域网语音输入",
         "disconnectTitle": "连接已断开",
-        "disconnectMsg": "WebSocket 连接已断开，请点击下方按钮刷新页面重新连接。",
+        "disconnectMsg": "WebSocket 连接已断开。可先点「立即连接」重试，仍不行再刷新页面。",
         "refreshBtn": "🔄 刷新页面",
+        "connectNow": "⚡ 立即连接",
         "authError": "⚠️ 权限不正确",
         "authMsg": "请重新扫码再试",
         "iUnderstand": "我知道了",
@@ -94,8 +95,9 @@ WEB_TRANSLATIONS = {
     "en": {
         "title": "LAN Voice Input",
         "disconnectTitle": "Connection Disconnected",
-        "disconnectMsg": "WebSocket disconnected. Click the button below to refresh and reconnect.",
+        "disconnectMsg": "WebSocket disconnected. Try «Connect now», or refresh the page.",
         "refreshBtn": "🔄 Refresh",
+        "connectNow": "⚡ Connect now",
         "authError": "⚠️ Invalid permission",
         "authMsg": "Please scan again",
         "iUnderstand": "I understand",

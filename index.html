@@ -128,7 +128,9 @@
     .disconnect-dialog { background: #fff; border-radius: 14px; padding: 24px; max-width: 320px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
     .disconnect-dialog h3 { margin: 0 0 12px; font-size: 18px; color: #333; }
     .disconnect-dialog p { margin: 0 0 20px; font-size: 15px; color: #666; line-height: 1.5; }
-    .disconnect-dialog .refresh-btn { font-size: 16px; padding: 12px 24px; border-radius: 10px; border: none; background: #4a90d9; color: #fff; cursor: pointer; box-shadow: 0 2px 8px rgba(74,144,217,0.4); touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    .disconnect-dialog .refresh-btn { display: block; width: 100%; box-sizing: border-box; font-size: 16px; padding: 12px 24px; border-radius: 10px; border: none; background: #4a90d9; color: #fff; cursor: pointer; box-shadow: 0 2px 8px rgba(74,144,217,0.4); touch-action: manipulation; -webkit-tap-highlight-color: transparent; margin-top: 10px; }
+    .disconnect-dialog .refresh-btn:first-of-type { margin-top: 0; }
+    .disconnect-dialog .refresh-btn-secondary { background: #f0f4fa; color: #2a5a9e; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 1px solid #c5d6ec; }
     .disconnect-dialog .refresh-btn:active { transform: translateY(1px); }
     /* Connecting overlay */
     .connecting-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9998; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
@@ -136,7 +138,10 @@
     .connecting-dialog { background: #fff; border-radius: 14px; padding: 28px 24px; max-width: 300px; width: 100%; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
     .connecting-dialog h3 { margin: 0 0 16px; font-size: 17px; color: #333; }
     .connecting-dialog .retry-info { font-size: 13px; color: #888; margin-top: 12px; min-height: 18px; }
-    .connecting-dialog .cancel-btn { margin-top: 16px; font-size: 14px; padding: 8px 20px; border-radius: 8px; border: 1px solid #d0d0d0; background: #f5f5f5; color: #555; cursor: pointer; }
+    .connecting-dialog .connect-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; width: 100%; }
+    .connecting-dialog .connect-now-btn { font-size: 15px; padding: 12px 20px; border-radius: 10px; border: none; background: #4a90d9; color: #fff; cursor: pointer; box-shadow: 0 2px 8px rgba(74,144,217,0.35); touch-action: manipulation; -webkit-tap-highlight-color: transparent; width: 100%; box-sizing: border-box; }
+    .connecting-dialog .connect-now-btn:active { transform: translateY(1px); }
+    .connecting-dialog .cancel-btn { margin-top: 0; font-size: 14px; padding: 8px 20px; border-radius: 8px; border: 1px solid #d0d0d0; background: #f5f5f5; color: #555; cursor: pointer; width: 100%; box-sizing: border-box; }
     .connecting-dialog .cancel-btn:active { transform: translateY(1px); }
     .ws-spinner { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 4px 0; }
     .ws-spinner span { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #4a90d9; animation: ws-bounce 1.1s ease-in-out infinite both; }
@@ -153,8 +158,9 @@
   <div id="disconnectOverlay" class="disconnect-overlay">
     <div class="disconnect-dialog">
       <h3 id="disconnectTitle" data-i18n="disconnectTitle">连接已断开</h3>
-      <p id="disconnectMsg" data-i18n="disconnectMsg">WebSocket 连接已断开，请点击下方按钮刷新页面重新连接。</p>
-      <button type="button" class="refresh-btn" id="disconnectRefreshBtn" data-i18n="refreshBtn">🔄 刷新页面</button>
+      <p id="disconnectMsg" data-i18n="disconnectMsg">WebSocket 连接已断开。可先点「立即连接」重试，仍不行再刷新页面。</p>
+      <button type="button" class="refresh-btn" id="disconnectConnectBtn" data-i18n="connectNow">⚡ 立即连接</button>
+      <button type="button" class="refresh-btn refresh-btn-secondary" id="disconnectRefreshBtn" data-i18n="refreshBtn">🔄 刷新页面</button>
     </div>
   </div>
   <div id="connectingOverlay" class="connecting-overlay show">
@@ -162,7 +168,10 @@
       <h3 id="connectingTitle">正在连接...</h3>
       <div class="ws-spinner"><span></span><span></span><span></span></div>
       <div id="connectingRetryInfo" class="retry-info"></div>
-      <button type="button" class="cancel-btn" id="connectingCancelBtn">取消</button>
+      <div class="connect-actions">
+        <button type="button" class="connect-now-btn" id="connectingRetryNowBtn" data-i18n="connectNow">⚡ 立即连接</button>
+        <button type="button" class="cancel-btn" id="connectingCancelBtn" data-i18n="cancel">取消</button>
+      </div>
     </div>
   </div>
   <div class="status-row log-row">
@@ -351,6 +360,7 @@ let wsRetryCount = 0;
 let wsRetryTimer = null;
 let wsCountdownInterval = null;
 let wsManualCancel = false;
+let wsInstanceId = 0; // ignore onclose/onopen from sockets we replaced (avoids duplicate scheduleWsRetry delays)
 const WS_RETRY_DELAYS = [1500, 3000, 5000, 8000, 12000, 20000]; // ms per attempt
 const WS_MAX_RETRIES = 20; // give up and show disconnect dialog after this many failures
 
@@ -493,6 +503,8 @@ function showDisconnectOverlay(isAuthOrConnectFailed){
       if(msg) msg.textContent = t("disconnectMsg");
       if(btn) btn.textContent = t("refreshBtn");
     }
+    const connectBtn = document.getElementById("disconnectConnectBtn");
+    if(connectBtn) connectBtn.style.display = isAuthOrConnectFailed ? "none" : "";
     el.classList.add("show");
   }
 }
@@ -544,11 +556,14 @@ async function connectWS(){
 
   if(wsManualCancel) return;
 
+  const myId = ++wsInstanceId;
+
   showConnectingOverlay(wsRetryCount, 0);
 
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
+    if(myId !== wsInstanceId) return;
     wsEverConnected = true;
     wsRetryCount = 0;
     wsManualCancel = false;
@@ -560,6 +575,7 @@ async function connectWS(){
   };
 
   ws.onclose = (e) => {
+    if(myId !== wsInstanceId) return;
     const msg = e.code ? (t("disconnected") + " (code:" + e.code + (e.reason ? " " + e.reason : "") + ")") : t("disconnected");
     log(msg);
     updateConnectionUI();
@@ -567,6 +583,7 @@ async function connectWS(){
   };
 
   ws.onerror = () => {
+    if(myId !== wsInstanceId) return;
     log(t("disconnected") + " " + wsUrl);
     updateConnectionUI();
   };
@@ -583,6 +600,7 @@ async function connectWS(){
   }
 
   ws.onmessage = (event) => {
+    if(myId !== wsInstanceId) return;
     try{
       const data = JSON.parse(event.data);
       if(data && data.type === "cmd_progress"){
@@ -684,8 +702,7 @@ function scheduleWsRetry(){
   }, delay);
 }
 
-/** When the user returns from sleep / background, timers are throttled and retry backoff may be huge — reconnect immediately. */
-let wsPageWasHidden = false;
+/** When the page becomes active or the window gains focus, connect immediately (fixes background-tab load where visibility was never "hidden" first; OPEN is a no-op). */
 function reconnectWsImmediately(){
   if(wsManualCancel) return;
   if(ws && ws.readyState === WebSocket.OPEN) return;
@@ -698,13 +715,30 @@ function reconnectWsImmediately(){
   connectWS();
 }
 
+/** User-triggered: clears manual cancel, closes disconnect dialog, reconnects without waiting for backoff. */
+function manualConnectNow(){
+  wsManualCancel = false;
+  hideDisconnectOverlay();
+  reconnectWsImmediately();
+}
+
 document.addEventListener("visibilitychange", () => {
-  if(document.visibilityState === "hidden"){
-    wsPageWasHidden = true;
-    return;
-  }
-  if(document.visibilityState !== "visible" || !wsPageWasHidden) return;
-  wsPageWasHidden = false;
+  if(document.visibilityState === "visible") reconnectWsImmediately();
+});
+
+/** Mobile Chrome: tab frozen while screen off; timers coalesce — resume reconnects without waiting for backoff. */
+document.addEventListener("resume", () => {
+  reconnectWsImmediately();
+});
+
+/**
+ * Some devices fire focus when unlocking before or without a reliable visibility flip.
+ * Skip only the very first in-flight connect on cold load to avoid aborting the initial handshake.
+ */
+window.addEventListener("focus", () => {
+  if(wsManualCancel) return;
+  if(ws && ws.readyState === WebSocket.OPEN) return;
+  if(ws && ws.readyState === WebSocket.CONNECTING && !wsEverConnected && wsRetryCount === 0) return;
   reconnectWsImmediately();
 });
 
@@ -727,6 +761,25 @@ window.addEventListener("pageshow", (e) => {
   connectWS();
   updateConnectionUI();
   await loadI18n();
+})();
+
+(function(){
+  const btn = document.getElementById("connectingRetryNowBtn");
+  if(!btn) return;
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    manualConnectNow();
+  });
+})();
+
+(function(){
+  const btn = document.getElementById("disconnectConnectBtn");
+  if(!btn) return;
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    manualConnectNow();
+  });
 })();
 
 (function(){
