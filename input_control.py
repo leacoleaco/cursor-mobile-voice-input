@@ -1,4 +1,8 @@
-"""Windows input/clipboard helpers (SendInput, focus, clipboard)."""
+"""Windows input/clipboard helpers (SendInput, focus, clipboard).
+
+Clipboard-based replace (Ctrl+V) into Windows Sandbox requires clipboard redirection
+enabled in the .wsb file (<ClipboardRedirection>Enable</ClipboardRedirection>).
+"""
 import ctypes
 import subprocess
 import sys
@@ -91,6 +95,82 @@ class GUITHREADINFO(ctypes.Structure):
     ]
 
 
+GA_ROOT = 2
+
+# RDP / VM client surfaces: PostMessage(WM_CHAR) often succeeds locally but does not
+# reach the remote session (Windows Sandbox, mstsc, Hyper-V viewer).
+_WM_CHAR_UNRELIABLE_CLASSES = frozenset(
+    name.lower()
+    for name in (
+        "TscShellContainerClass",
+        "IHWindowClass",
+        "RAIL_WINDOW",
+        "VMWindow",
+    )
+)
+
+
+def _get_root_hwnd(hwnd: int) -> int:
+    if not hwnd:
+        return 0
+    try:
+        root = user32.GetAncestor(hwnd, GA_ROOT)
+        return int(root) if root else hwnd
+    except Exception:
+        return hwnd
+
+
+def _get_window_text(hwnd: int, buf_size: int = 512) -> str:
+    try:
+        buf = ctypes.create_unicode_buffer(buf_size)
+        if user32.GetWindowTextW(hwnd, buf, buf_size):
+            return buf.value
+    except Exception:
+        pass
+    return ""
+
+
+def _get_window_class(hwnd: int, buf_size: int = 256) -> str:
+    try:
+        buf = ctypes.create_unicode_buffer(buf_size)
+        if user32.GetClassNameW(hwnd, buf, buf_size):
+            return buf.value
+    except Exception:
+        pass
+    return ""
+
+
+def _focus_surface_unreliable_for_wm_char(hwnd: Optional[int]) -> bool:
+    """
+    True if WM_CHAR posted to the focused HWND will not reach the real text target
+    (e.g. Windows Sandbox / RDP guest). In those cases we must use SendInput.
+    """
+    if not hwnd:
+        return False
+    to_check = [hwnd, _get_root_hwnd(hwnd)]
+    cur = hwnd
+    for _ in range(24):
+        parent = user32.GetParent(cur)
+        if not parent:
+            break
+        to_check.append(int(parent))
+        cur = int(parent)
+
+    for h in to_check:
+        if not h:
+            continue
+        title = _get_window_text(h)
+        tl = title.lower()
+        if "windows sandbox" in tl or "沙盒" in title:
+            return True
+        if "remote desktop connection" in tl or "远程桌面" in title:
+            return True
+        cls = _get_window_class(h).lower()
+        if cls in _WM_CHAR_UNRELIABLE_CLASSES:
+            return True
+    return False
+
+
 def _get_focus_hwnd() -> Optional[int]:
     """Get the HWND that owns keyboard focus (fallback to foreground window)."""
     info = GUITHREADINFO()
@@ -110,9 +190,12 @@ def _try_post_chars(text: str) -> bool:
     """
     Prefer PostMessage(WM_CHAR) injection to avoid first-character loss in Notepad.
     Falls back to SendInput when code points exceed BMP.
+    Skipped for Windows Sandbox / RDP-style surfaces: WM_CHAR does not reach the guest.
     """
     hwnd = _get_focus_hwnd()
     if not hwnd:
+        return False
+    if _focus_surface_unreliable_for_wm_char(hwnd):
         return False
     ok = True
     for ch in text:
