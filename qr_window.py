@@ -102,6 +102,7 @@ class QRWindowManager:
         self.tip_label = None
         self.conn_label = None
         self.log_text = None
+        self._log_frame = None
         self.lang_combo = None
         self.lang_var = None
         self._header_widgets = {}  # for refresh
@@ -190,6 +191,7 @@ class QRWindowManager:
             self.tip_label = None
             self.conn_label = None
             self.log_text = None
+            self._log_frame = None
             self.root.quit()
             if self.dev_close_event:
                 self.dev_close_event.set()
@@ -221,6 +223,7 @@ class QRWindowManager:
         self.tip_label = None
         self.conn_label = None
         self.log_text = None
+        self._log_frame = None
 
     def _ensure_window(self):
         if self.top is not None:
@@ -341,7 +344,8 @@ class QRWindowManager:
             except Exception:
                 pass
 
-        log_frame = ttk.LabelFrame(self.top, text=_("Log"), padding=4)
+        log_frame = ttk.LabelFrame(self.top, text=_("Connection log"), padding=4)
+        self._log_frame = log_frame
         log_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         log_inner = ttk.Frame(log_frame)
         log_inner.pack(fill="both", expand=True)
@@ -452,6 +456,7 @@ class QRWindowManager:
                         "key_path": config_store.SSH_TUNNEL_KEY_PATH,
                         "remote_port": config_store.SSH_REMOTE_PORT,
                     }
+                self.log(_("Starting SSH tunnel…"))
                 err = self.ssh_tunnel.start(refresh_config=get_tunnel_config)
                 if err:
                     self.log(f"[Tunnel] {err}")
@@ -778,6 +783,11 @@ class QRWindowManager:
         self._header_widgets["cb_run_in_bg"].configure(text=_("Run in background when closed"))
         if "cb_ssl" in self._header_widgets:
             self._header_widgets["cb_ssl"].configure(text=_("HTTPS/WSS (self-signed TLS)"))
+        if self._log_frame:
+            try:
+                self._log_frame.configure(text=_("Connection log"))
+            except Exception:
+                pass
         if self.url_copy_btn:
             self.url_copy_btn.configure(text=_("Copy server address"))
         if self.ssl_var:
@@ -1019,4 +1029,4 @@ class QRWindowManager:
 
         self._reload_ip_list_and_select_current()
         self._refresh_qr_and_text()
-        self.log(_("Log area: tunnel status and errors will appear here"))
+        self.log(_("Connection log: SSH output, tunnel status, and errors appear here"))

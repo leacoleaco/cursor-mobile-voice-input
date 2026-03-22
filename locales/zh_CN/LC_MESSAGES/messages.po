@@ -388,6 +388,42 @@ msgstr "手机扫码（公网，任意位置可用）"
 msgid "Log"
 msgstr "日志"
 
+msgid "Connection log"
+msgstr "连接日志"
+
+msgid "Connection log: SSH output, tunnel status, and errors appear here"
+msgstr "连接日志：SSH 输出、隧道状态与错误会显示在此"
+
+msgid "Starting SSH tunnel…"
+msgstr "正在启动 SSH 隧道…"
+
+msgid "SSH: reverse tunnel 0.0.0.0:{rport} → 127.0.0.1:{lport} as {user}@{host} (ssh port {sport})"
+msgstr "SSH：反向隧道 0.0.0.0:{rport} → 127.0.0.1:{lport}，用户 {user}@{host}（SSH 端口 {sport}）"
+
+msgid "Tunnel session established (waiting for traffic)"
+msgstr "隧道会话已建立（等待流量）"
+
+msgid "SSH process exited (code {code})"
+msgstr "SSH 进程已退出（退出码 {code}）"
+
+msgid "Remote port {port} busy; retry in {delay}s (attempt to free on server)"
+msgstr "远程端口 {port} 被占用；{delay} 秒后重试（尝试在服务器上释放）"
+
+msgid "Reconnecting in {delay}s (attempt {n})"
+msgstr "{delay} 秒后重连（第 {n} 次尝试）"
+
+msgid "SSH (paramiko): connecting to {host}:{port} as {user}…"
+msgstr "SSH（paramiko）：正在连接 {host}:{port}，用户 {user}…"
+
+msgid "SSH authenticated; requesting remote port {port}…"
+msgstr "SSH 已认证；正在请求远程端口 {port}…"
+
+msgid "Paramiko reverse tunnel active (remote :{port} → local :{local})"
+msgstr "Paramiko 反向隧道已就绪（远程 :{port} → 本机 :{local}）"
+
+msgid "Hint: (1) Port may be in use on the server — use “Kill remote port” or pick another remote port. (2) For public access, sshd needs GatewayPorts yes (and often a restart)."
+msgstr "提示：（1）远程端口可能被占用 — 可点「杀死远程端口进程」或换一个远程端口。（2）公网访问需在 sshd 中设置 GatewayPorts yes（改后通常要重启 sshd）。"
+
 msgid "Tunnel started"
 msgstr "隧道已启动"
 

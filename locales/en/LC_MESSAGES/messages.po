@@ -388,6 +388,42 @@ msgstr "Scan with phone (public internet, anywhere)"
 msgid "Log"
 msgstr "Log"
 
+msgid "Connection log"
+msgstr "Connection log"
+
+msgid "Connection log: SSH output, tunnel status, and errors appear here"
+msgstr "Connection log: SSH output, tunnel status, and errors appear here"
+
+msgid "Starting SSH tunnel…"
+msgstr "Starting SSH tunnel…"
+
+msgid "SSH: reverse tunnel 0.0.0.0:{rport} → 127.0.0.1:{lport} as {user}@{host} (ssh port {sport})"
+msgstr "SSH: reverse tunnel 0.0.0.0:{rport} → 127.0.0.1:{lport} as {user}@{host} (ssh port {sport})"
+
+msgid "Tunnel session established (waiting for traffic)"
+msgstr "Tunnel session established (waiting for traffic)"
+
+msgid "SSH process exited (code {code})"
+msgstr "SSH process exited (code {code})"
+
+msgid "Remote port {port} busy; retry in {delay}s (attempt to free on server)"
+msgstr "Remote port {port} busy; retry in {delay}s (attempt to free on server)"
+
+msgid "Reconnecting in {delay}s (attempt {n})"
+msgstr "Reconnecting in {delay}s (attempt {n})"
+
+msgid "SSH (paramiko): connecting to {host}:{port} as {user}…"
+msgstr "SSH (paramiko): connecting to {host}:{port} as {user}…"
+
+msgid "SSH authenticated; requesting remote port {port}…"
+msgstr "SSH authenticated; requesting remote port {port}…"
+
+msgid "Paramiko reverse tunnel active (remote :{port} → local :{local})"
+msgstr "Paramiko reverse tunnel active (remote :{port} → local :{local})"
+
+msgid "Hint: (1) Port may be in use on the server — use “Kill remote port” or pick another remote port. (2) For public access, sshd needs GatewayPorts yes (and often a restart)."
+msgstr "Hint: (1) Port may be in use on the server — use “Kill remote port” or pick another remote port. (2) For public access, sshd needs GatewayPorts yes (and often a restart)."
+
 msgid "Tunnel started"
 msgstr "Tunnel started"
 

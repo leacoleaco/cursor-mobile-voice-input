@@ -171,7 +171,12 @@ def main():
                 qr_mgr.log(_("Tunnel started"))
             else:
                 qr_mgr.log(_("Tunnel stopped"))
+
+        def on_tunnel_log(line: str):
+            qr_mgr.log(line)
+
         ssh_tunnel.on_state_change = on_tunnel_state
+        ssh_tunnel.on_log = on_tunnel_log
 
     print("\n======================================")
     print("✅", _("Started"))
