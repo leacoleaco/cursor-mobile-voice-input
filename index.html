@@ -1162,10 +1162,48 @@ document.getElementById("mouseScrollDownBtn").onclick = () => {
 };
 
 const box = document.getElementById("inputBox");
+
+let emptyInputBackspaceSentAt = 0;
+const EMPTY_BS_DEDUP_MS = 120;
+
+/**
+ * When the textarea has no text and the user is not in IME composition, forward Backspace/删除
+ * to the PC like the ⌫ button (same as { type: "key", key: "backspace" }). Dedup keydown +
+ * beforeinput for mobile IME.
+ */
+function sendRemoteBackspaceIfInputEmpty(e) {
+  if (currentMode !== "text" && currentMode !== "cmd") return false;
+  if (isComposing) return false;
+  if ((box.value || "").length > 0) return false;
+  const now = Date.now();
+  if (now - emptyInputBackspaceSentAt < EMPTY_BS_DEDUP_MS) {
+    if (e && e.cancelable) e.preventDefault();
+    return true;
+  }
+  emptyInputBackspaceSentAt = now;
+  if (e && e.cancelable) e.preventDefault();
+  if (!ws || ws.readyState !== 1) {
+    log(t("wsKeyError"));
+    return true;
+  }
+  ws.send(JSON.stringify({ type: "key", key: "backspace" }));
+  log(t("keySent") + "⌫");
+  return true;
+}
+
+box.addEventListener("beforeinput", (e) => {
+  if (e.inputType !== "deleteContentBackward") return;
+  sendRemoteBackspaceIfInputEmpty(e);
+});
+
 box.addEventListener("keydown", (e) => {
   if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey) {
     e.preventDefault();
     setMode("keyboard");
+    return;
+  }
+  if (e.key === "Backspace") {
+    sendRemoteBackspaceIfInputEmpty(e);
   }
 });
 box.addEventListener("compositionstart", () => isComposing = true);
