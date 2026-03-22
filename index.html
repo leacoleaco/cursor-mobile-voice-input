@@ -192,16 +192,17 @@
     <button id="modeKeyboardBtn" class="mode-btn" data-i18n="modeKeyboard">⌨ 键盘</button>
   </div>
   <div class="panel-text-cmd">
-    <div class="input-box-wrap">
+    <form class="input-box-wrap" id="inputForm">
+      <button type="submit" style="display:none" aria-hidden="true"></button>
       <input type="text" id="inputBox" class="disconnected" enterkeyhint="done" autocomplete="off" autocorrect="on" spellcheck="true" data-i18n-placeholder="placeholderText" placeholder="点击这里调起输入法（推荐用手机键盘语音输入）" />
-      <button class="action-btn shortcut-coffee send-btn-float send-btn-float-top-left" data-key="@" title="@">@</button>
-      <button class="action-btn send-btn-float send-btn-float-top-right" data-key="backspace" data-i18n-title="backspace" title="退格">⌫</button>
+      <button type="button" class="action-btn shortcut-coffee send-btn-float send-btn-float-top-left" data-key="@" title="@">@</button>
+      <button type="button" class="action-btn send-btn-float send-btn-float-top-right" data-key="backspace" data-i18n-title="backspace" title="退格">⌫</button>
       <div class="send-buttons-row">
-        <button id="sendBtn" class="action-btn" data-i18n="sendNow">立即发送</button>
-        <button class="action-btn" data-key="shift+enter" data-i18n="newline" data-i18n-title="newline" title="换行">换行</button>
-        <button class="action-btn shortcut-coffee" data-key="enter" data-i18n="enter" data-i18n-title="enter" title="回车">↵ 回车</button>
+        <button type="button" id="sendBtn" class="action-btn" data-i18n="sendNow">立即发送</button>
+        <button type="button" class="action-btn" data-key="shift+enter" data-i18n="newline" data-i18n-title="newline" title="换行">换行</button>
+        <button type="button" class="action-btn shortcut-coffee" data-key="enter" data-i18n="enter" data-i18n-title="enter" title="回车">↵ 回车</button>
       </div>
-    </div>
+    </form>
     <div class="action" style="margin-top: 10px;">
       <div class="send-mode-switch">
         <span class="send-mode-label" data-i18n="autoSend">自动发送</span>
@@ -864,6 +865,13 @@ function doSend() {
 }
 document.getElementById("sendBtn").onclick = doSend;
 
+document.getElementById("inputForm").addEventListener("submit", function(e) {
+  e.preventDefault();
+  alert(1)
+
+  sendEnterIfInputNonEmpty(null);
+});
+
 
 document.getElementById("clearBtn").onclick = () => {
   const box = document.getElementById("inputBox");
@@ -1220,6 +1228,8 @@ let emptyInputBackspaceSentAt = 0;
 const EMPTY_BS_DEDUP_MS = 120;
 let emptyInputNewlineSentAt = 0;
 const EMPTY_NL_DEDUP_MS = 120;
+let nonEmptyInputEnterSentAt = 0;
+const NONEMPTY_ENTER_DEDUP_MS = 120;
 
 /**
  * When the input has no text and the user is not in IME composition, forward Backspace/删除
@@ -1243,6 +1253,31 @@ function sendRemoteBackspaceIfInputEmpty(e) {
   }
   ws.send(JSON.stringify({ type: "key", key: "backspace" }));
   log(t("keySent") + "⌫");
+  return true;
+}
+
+/**
+ * When the input has text and the user is not in IME composition, doSend() then forward Enter
+ * to the PC (same as clicking the ↵ 回车 button). Dedup keydown + beforeinput for mobile IME.
+ */
+function sendEnterIfInputNonEmpty(e) {
+  if (currentMode !== "text" && currentMode !== "cmd") return false;
+  if (isComposing) return false;
+  if (!(box.value || "").trim()) return false;
+  const now = Date.now();
+  if (now - nonEmptyInputEnterSentAt < NONEMPTY_ENTER_DEDUP_MS) {
+    if (e && e.cancelable) e.preventDefault();
+    return true;
+  }
+  nonEmptyInputEnterSentAt = now;
+  if (e && e.cancelable) e.preventDefault();
+  doSend();
+  if (!ws || ws.readyState !== 1) {
+    log(t("wsKeyError"));
+    return true;
+  }
+  ws.send(JSON.stringify({ type: "key", key: "enter" }));
+  log(t("keySent") + t("enter"));
   return true;
 }
 
@@ -1277,8 +1312,15 @@ box.addEventListener("beforeinput", (e) => {
     return;
   }
   if (e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") {
-    sendRemoteNewlineIfInputEmpty(e);
+    if (!sendEnterIfInputNonEmpty(e)) {
+      sendRemoteNewlineIfInputEmpty(e);
+    }
   }
+});
+
+document.getElementById("inputForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  sendEnterIfInputNonEmpty(null);
 });
 
 box.addEventListener("keydown", (e) => {
@@ -1292,7 +1334,9 @@ box.addEventListener("keydown", (e) => {
     return;
   }
   if (e.key === "Enter") {
-    sendRemoteNewlineIfInputEmpty(e);
+    if (!sendEnterIfInputNonEmpty(e)) {
+      sendRemoteNewlineIfInputEmpty(e);
+    }
   }
 });
 box.addEventListener("compositionstart", () => isComposing = true);
