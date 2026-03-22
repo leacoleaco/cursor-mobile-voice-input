@@ -683,6 +683,43 @@ function scheduleWsRetry(){
     if(!wsManualCancel) connectWS();
   }, delay);
 }
+
+/** When the user returns from sleep / background, timers are throttled and retry backoff may be huge — reconnect immediately. */
+let wsPageWasHidden = false;
+function reconnectWsImmediately(){
+  if(wsManualCancel) return;
+  if(ws && ws.readyState === WebSocket.OPEN) return;
+  if(wsRetryTimer){ clearTimeout(wsRetryTimer); wsRetryTimer = null; }
+  if(wsCountdownInterval){ clearInterval(wsCountdownInterval); wsCountdownInterval = null; }
+  wsRetryCount = 0;
+  if(ws && ws.readyState === WebSocket.CONNECTING){
+    try { ws.close(); } catch(e){}
+  }
+  connectWS();
+}
+
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "hidden"){
+    wsPageWasHidden = true;
+    return;
+  }
+  if(document.visibilityState !== "visible" || !wsPageWasHidden) return;
+  wsPageWasHidden = false;
+  reconnectWsImmediately();
+});
+
+window.addEventListener("online", () => {
+  if(wsManualCancel) return;
+  if(ws && ws.readyState === WebSocket.OPEN) return;
+  if(wsEverConnected || wsRetryTimer !== null){
+    reconnectWsImmediately();
+  }
+});
+
+window.addEventListener("pageshow", (e) => {
+  if(e.persisted) reconnectWsImmediately();
+});
+
 (async function init(){
   // Start WebSocket immediately in parallel with i18n loading so the TCP
   // handshake begins as early as possible (avoids the ~46s first-connect
